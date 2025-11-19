@@ -1,0 +1,244 @@
+﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.Models.Section>
+
+@{
+    ViewData["Title"] = "Sections";
+}
+
+<h1>Sections</h1>
+
+<div class="mb-3">
+    <button class="btn btn-primary" id="btnCreateSection">
+        <i class="bi bi-plus-circle"></i> Create Section
+    </button>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:1050; text-align:center;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="mt-2">Loading...</div>
+    </div>
+</div>
+
+<table class="table table-bordered table-striped table-sm align-middle w-100" id="sectionsTable">
+    <thead>
+        <tr>
+            <th>Section Name</th>
+            <th>Level</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr data-id="@item.SectionId">
+                <td>@item.SectionName</td>
+                <td>@item.Level?.LevelName</td>
+                <td>
+                    <button class="btn btn-sm btn-warning btn-edit" data-id="@item.SectionId">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger btn-delete" data-id="@item.SectionId">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Modal for Create/Edit -->
+<div class="modal fade" id="sectionModal" tabindex="-1" aria-labelledby="sectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sectionModalLabel">Create/Edit Section</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sectionForm">
+                    <input type="hidden" id="SectionId" name="SectionId" />
+                    <div class="mb-3">
+                        <label for="SectionName" class="form-label">Section Name</label>
+                        <input type="text" class="form-control" id="SectionName" name="SectionName" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="LevelId" class="form-label">Level</label>
+                        <select class="form-select" id="LevelId" name="LevelId" required>
+                            <option value="">-- Select Level --</option>
+                            @foreach (var level in ViewBag.LevelId as SelectList)
+                            {
+                                <option value="@level.Value">@level.Text</option>
+                            }
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveSectionBtn">
+                    <i class="bi bi-check-circle"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            var toastEl = $('#toast');
+            var toastMessage = $('#toastMessage');
+            var loadingOverlay = $('#loadingOverlay');
+
+            function showToast(message, bgClass = 'bg-success') {
+                toastEl.removeClass('bg-success bg-danger bg-warning').addClass(bgClass);
+                toastMessage.text(message);
+                var toast = new bootstrap.Toast(toastEl[0]);
+                toast.show();
+            }
+
+            function showLoading(show = true) {
+                show ? loadingOverlay.show() : loadingOverlay.hide();
+            }
+
+            // Bootstrap 5 modal instance
+            var sectionModalEl = document.getElementById('sectionModal');
+            var sectionModal = new bootstrap.Modal(sectionModalEl);
+
+            // Initialize DataTables
+            var table = $('#sectionsTable').DataTable({
+                "columnDefs": [{ "orderable": false, "targets": 2 }]
+            });
+
+            // Open modal for create
+            $('#btnCreateSection').click(function () {
+                $('#sectionModalLabel').text('Create Section');
+                $('#SectionId').val('');
+                $('#SectionName').val('');
+                $('#LevelId').val('');
+                sectionModal.show();
+            });
+
+            // Open modal for edit
+            $(document).on('click', '.btn-edit', function () {
+                var id = $(this).data('id');
+                showLoading(true);
+
+                $.get(`/api/SectionsApi/${id}`, function (res) {
+                    showLoading(false);
+                    if (res.success) {
+                        $('#sectionModalLabel').text('Edit Section');
+                        $('#SectionId').val(res.data.sectionId);
+                        $('#SectionName').val(res.data.sectionName);
+                        $('#LevelId').val(res.data.levelId || '');
+                        sectionModal.show();
+                    } else {
+                        showToast(res.message, 'bg-danger');
+                    }
+                }).fail(function () {
+                    showLoading(false);
+                    showToast('Failed to load section', 'bg-danger');
+                });
+            });
+
+            // Save section (create or edit)
+            $('#saveSectionBtn').click(function () {
+                var sectionId = $('#SectionId').val();
+                var isEdit = sectionId && sectionId != '';
+                var sectionData = {
+                    sectionId: isEdit ? parseInt(sectionId) : 0,
+                    sectionName: $('#SectionName').val(),
+                    levelId: parseInt($('#LevelId').val())
+                };
+
+                var url = isEdit ? `/api/SectionsApi/${sectionId}` : '/api/SectionsApi';
+                var type = isEdit ? 'PUT' : 'POST';
+
+                showLoading(true);
+                $.ajax({
+                    url: url,
+                    type: type,
+                    contentType: 'application/json',
+                    data: JSON.stringify(sectionData),
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            var levelName = res.data.level ? res.data.level.name : '';
+                            if (isEdit) {
+                                // Update existing row
+                                var row = table.row($(`tr[data-id="${sectionId}"]`));
+                                row.data([
+                                    res.data.sectionName,
+                                    levelName,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.sectionId}"><i class="bi bi-pencil-square"></i></button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.sectionId}"><i class="bi bi-trash"></i></button>`
+                                ]).draw(false);
+                            } else {
+                                // Add new row
+                                var newRow = table.row.add([
+                                    res.data.sectionName,
+                                    levelName,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.sectionId}"><i class="bi bi-pencil-square"></i></button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.sectionId}"><i class="bi bi-trash"></i></button>`
+                                ]).draw(false).node();
+                                $(newRow).attr('data-id', res.data.sectionId);
+                            }
+                            showToast(res.message);
+                            sectionModal.hide();
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function () {
+                        showLoading(false);
+                        showToast('Failed to save!', 'bg-danger');
+                    }
+                });
+            });
+
+            // Delete section
+            $(document).on('click', '.btn-delete', function () {
+                if (!confirm('Are you sure you want to delete this section?')) return;
+                var id = $(this).data('id');
+
+                showLoading(true);
+                $.ajax({
+                    url: `/api/SectionsApi/${id}`,
+                    type: 'DELETE',
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            table.row($(`tr[data-id="${id}"]`)).remove().draw();
+                            showToast(res.message);
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function () {
+                        showLoading(false);
+                        showToast('Failed to delete!', 'bg-danger');
+                    }
+                });
+            });
+        });
+    </script>
+}

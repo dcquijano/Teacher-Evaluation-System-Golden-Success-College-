@@ -1,0 +1,47 @@
+﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.Models.Score>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Evaluation)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Question)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.ScoreValue)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Evaluation.EvaluationId)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Question.Description)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.ScoreValue)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.ScoreId">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.ScoreId">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.ScoreId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>

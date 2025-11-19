@@ -1,0 +1,64 @@
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.Models.Question
+
+@{
+    ViewData["Title"] = "Create";
+}
+
+<h1>Create Question</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Create">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group">
+                <label asp-for="CriteriaId" class="control-label"></label>
+                <select asp-for="CriteriaId" class="form-control" asp-items="ViewBag.CriteriaId"></select>
+            </div>
+
+            <div class="form-group">
+                <label>Descriptions</label>
+                <div id="descriptionContainer">
+                    <div class="input-group mb-2 description-item">
+                        <input name="Description" class="form-control" />
+                        <button type="button" class="btn btn-danger btn-sm remove-btn">Remove</button>
+                    </div>
+                </div>
+                <button type="button" id="addDescription" class="btn btn-success btn-sm">Add Description</button>
+            </div>
+
+            <div class="form-group mt-3">
+                <input type="submit" value="Create" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <script>
+        $(document).ready(function () {
+
+            // Add new description
+            $("#addDescription").click(function () {
+                var newInput = `<div class="input-group mb-2 description-item">
+                                    <input name="Description" class="form-control" />
+                                    <button type="button" class="btn btn-danger btn-sm remove-btn">Remove</button>
+                                </div>`;
+                $("#descriptionContainer").append(newInput);
+            });
+
+            // Remove a description
+            $(document).on("click", ".remove-btn", function () {
+                $(this).closest(".description-item").remove();
+            });
+        });
+    </script>
+}

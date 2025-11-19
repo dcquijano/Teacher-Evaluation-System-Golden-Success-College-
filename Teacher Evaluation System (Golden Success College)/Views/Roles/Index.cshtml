@@ -1,0 +1,230 @@
+﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.Models.Role>
+
+@{
+    ViewData["Title"] = "Roles";
+}
+
+<h1>Roles</h1>
+
+<div class="mb-3">
+    <button class="btn btn-primary" id="btnCreateRole">
+        <i class="bi bi-plus-circle"></i> Create Role
+    </button>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:1050; text-align:center;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="mt-2">Loading...</div>
+    </div>
+</div>
+
+<table class="table table-bordered table-striped table-sm align-middle w-100" id="rolesTable">
+    <thead>
+        <tr>
+            <th>@Html.DisplayNameFor(model => model.First().Name)</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr data-id="@item.RoleId">
+                <td class="role-name">@item.Name</td>
+                <td>
+                    <button class="btn btn-sm btn-warning btn-edit" data-id="@item.RoleId">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger btn-delete" data-id="@item.RoleId">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Modal for Create/Edit -->
+<div class="modal fade" id="roleModal" tabindex="-1" aria-labelledby="roleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="roleModalLabel">Create/Edit Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="roleForm">
+                    <input type="hidden" id="RoleId" name="RoleId" />
+                    <div class="mb-3">
+                        <label for="Name" class="form-label">Role Name</label>
+                        <input type="text" class="form-control" id="Name" name="Name" required />
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveRoleBtn">
+                    <i class="bi bi-check-circle"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- jQuery, DataTables, and Bootstrap Icons CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <script>
+        $(document).ready(function () {
+            var toastEl = $('#toast');
+            var toastMessage = $('#toastMessage');
+            var loadingOverlay = $('#loadingOverlay');
+
+            function showToast(message, bgClass = 'bg-success') {
+                toastEl.removeClass('bg-success bg-danger bg-warning').addClass(bgClass);
+                toastMessage.text(message);
+                var toast = new bootstrap.Toast(toastEl[0]);
+                toast.show();
+            }
+
+            function showLoading(show = true) {
+                if (show) {
+                    loadingOverlay.show();
+                } else {
+                    loadingOverlay.hide();
+                }
+            }
+
+            // Initialize DataTables
+            var table = $('#rolesTable').DataTable({
+                "columnDefs": [{ "orderable": false, "targets": 1 }] // Actions column not sortable
+            });
+
+            // Open modal for create
+            $('#btnCreateRole').click(function () {
+                $('#roleModalLabel').text('Create Role');
+                $('#RoleId').val('');
+                $('#Name').val('');
+                $('#roleModal').modal('show');
+            });
+
+            // Open modal for edit
+            $(document).on('click', '.btn-edit', function () {
+                var id = $(this).data('id');
+                showLoading(true);
+                $.get(`/api/RolesApi/${id}`, function (res) {
+                    showLoading(false);
+                    if (res.success) {
+                        $('#roleModalLabel').text('Edit Role');
+                        $('#RoleId').val(res.data.roleId);
+                        $('#Name').val(res.data.name);
+                        $('#roleModal').modal('show');
+                    } else {
+                        showToast(res.message, 'bg-danger');
+                    }
+                }).fail(function() {
+                    showLoading(false);
+                    showToast('Something went wrong!', 'bg-danger');
+                });
+            });
+
+            // Save role (create or edit)
+            $('#saveRoleBtn').click(function () {
+                var roleId = $('#RoleId').val();
+                var isEdit = roleId && roleId != '';
+                var roleData = isEdit
+                    ? { RoleId: parseInt(roleId), Name: $('#Name').val() }
+                    : { Name: $('#Name').val() };
+
+                var url = isEdit ? `/api/RolesApi/${roleId}` : '/api/RolesApi';
+                var type = isEdit ? 'PUT' : 'POST';
+
+                showLoading(true);
+                $.ajax({
+                    url: url,
+                    type: type,
+                    contentType: 'application/json',
+                    data: JSON.stringify(roleData),
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            if (isEdit) {
+                                var row = table.row($(`tr[data-id="${roleId}"]`));
+                                row.data([
+                                    res.data.name,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.roleId}">
+                                        <i class="bi bi-pencil-square"></i>
+                                     </button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.roleId}">
+                                        <i class="bi bi-trash"></i>
+                                     </button>`
+                                ]).draw(false);
+                            } else {
+                                var newRow = table.row.add([
+                                    res.data.name,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.roleId}">
+                                        <i class="bi bi-pencil-square"></i>
+                                     </button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.roleId}">
+                                        <i class="bi bi-trash"></i>
+                                     </button>`
+                                ]).draw(false).node();
+                                $(newRow).attr('data-id', res.data.roleId);
+                            }
+                            showToast(res.message);
+                            $('#roleModal').modal('hide');
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function () {
+                        showLoading(false);
+                        showToast('Failed to save!', 'bg-danger');
+                    }
+                });
+            });
+
+            // Delete role
+            $(document).on('click', '.btn-delete', function () {
+                if (!confirm('Are you sure you want to delete this role?')) return;
+                var id = $(this).data('id');
+
+                showLoading(true);
+                $.ajax({
+                    url: `/api/RolesApi/${id}`,
+                    type: 'DELETE',
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            table.row($(`tr[data-id="${id}"]`)).remove().draw();
+                            showToast(res.message);
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function () {
+                        showLoading(false);
+                        showToast('Failed to delete!', 'bg-danger');
+                    }
+                });
+            });
+        });
+    </script>
+}

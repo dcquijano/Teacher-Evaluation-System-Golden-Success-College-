@@ -1,0 +1,35 @@
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.QuestionIndexViewModel
+@{
+    ViewData["Title"] = "Delete";
+}
+<h1>Delete</h1>
+<h3>Are you sure you want to delete this?</h3>
+<div>
+    <h4>Question</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">
+            Criteria
+        </dt>
+        <dd class="col-sm-10">
+            @Model.CriteriaName
+        </dd>
+        <dt class="col-sm-2">
+            Descriptions
+        </dt>
+        <dd class="col-sm-10">
+            <ol>
+                @for (int i = 0; i < Model.Descriptions.Count; i++)
+                {
+                    <div>@Model.Descriptions[i]</div>
+                }
+            </ol>
+        </dd>
+    </dl>
+
+    <form asp-action="Delete">
+        <input type="hidden" name="id" value="@Model.QuestionIds.First()" />
+        <input type="submit" value="Delete All" class="btn btn-danger" /> |
+        <a asp-action="Index">Back to List</a>
+    </form>
+</div>

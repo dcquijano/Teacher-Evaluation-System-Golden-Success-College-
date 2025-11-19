@@ -1,0 +1,94 @@
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.Models.Student
+
+@{
+    ViewData["Title"] = "Edit";
+}
+
+<h1>Edit</h1>
+<h4>Student</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Edit">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="StudentId" />
+
+            <div class="form-group">
+                <label asp-for="FullName" class="control-label"></label>
+                <input asp-for="FullName" class="form-control" />
+                <span asp-validation-for="FullName" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="Email" class="control-label"></label>
+                <input asp-for="Email" class="form-control" />
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="Password" class="control-label"></label>
+                <input asp-for="Password" class="form-control" />
+                <span asp-validation-for="Password" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="LevelId" class="control-label"></label>
+                <select asp-for="LevelId" class="form-control" asp-items="ViewBag.LevelId" id="LevelId"></select>
+                <span asp-validation-for="LevelId" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="SectionId" class="control-label"></label>
+                <select asp-for="SectionId" class="form-control" asp-items="ViewBag.SectionId"></select>
+                <span asp-validation-for="SectionId" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="CollegeYearLevel" class="control-label"></label>
+                <input asp-for="CollegeYearLevel" class="form-control" id="CollegeYearLevel" readonly />
+                <span asp-validation-for="CollegeYearLevel" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <script>
+        $(document).ready(function () {
+            function toggleCollegeYear() {
+                var levelText = $("#LevelId option:selected").text().toLowerCase();
+                var collegeInput = $("#CollegeYearLevel");
+
+                if (levelText.includes("college")) {
+                    collegeInput.prop("readonly", false);
+                    if (collegeInput.val() === "" || collegeInput.val() === "0") {
+                        collegeInput.val(1); // default first year
+                    }
+                } else {
+                    collegeInput.prop("readonly", true);
+                    collegeInput.val(0); // set to None
+                }
+            }
+
+            // Run on page load
+            toggleCollegeYear();
+
+            // Run when Level changes
+            $("#LevelId").change(function () {
+                toggleCollegeYear();
+            });
+        });
+    </script>
+}

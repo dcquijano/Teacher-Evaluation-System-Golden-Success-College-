@@ -1,0 +1,126 @@
+﻿<!-- ============================================ -->
+<!-- DETAILS VIEW: Views/TeacherEvaluations/Details.cshtml -->
+<!-- ============================================ -->
+@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.EvaluationResultViewModel
+
+@{
+    ViewData["Title"] = "Evaluation Details";
+}
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Evaluation Details</h2>
+            <a asp-action="Index" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Evaluation Summary -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Evaluation Summary</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Teacher:</strong>
+                    <p>@Model.TeacherName</p>
+                </div>
+                <div class="col-md-3">
+                    <strong>Subject:</strong>
+                    <p>@Model.SubjectName</p>
+                </div>
+                <div class="col-md-3">
+                    <strong>Student:</strong>
+                    <p>@Model.StudentName</p>
+                </div>
+                <div class="col-md-3">
+                    <strong>Date Evaluated:</strong>
+                    <p>@Model.DateEvaluated.ToString("MMMM dd, yyyy")</p>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <div class="alert alert-info">
+                        <h4 class="alert-heading">Overall Average Score</h4>
+                        <h2 class="mb-0">@Model.OverallAverage.ToString("F2") / 5.00</h2>
+                        <div class="progress mt-2" style="height: 30px;">
+                            <div class="progress-bar bg-@(Model.OverallAverage >= 4 ? "success" :
+                                                                                           Model.OverallAverage >= 3 ? "primary" :
+                                                                                           Model.OverallAverage >= 2 ? "warning" : "danger")"
+                                 role="progressbar"
+                                 style="width: @((Model.OverallAverage / 5) * 100)%">
+                                @Model.OverallAverage.ToString("F2")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Scores by Criteria -->
+    @foreach (var criteria in Model.CriteriaResults)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">@criteria.CriteriaName</h5>
+                <span class="badge bg-light text-dark">
+                    Average: @criteria.CriteriaAverage.ToString("F2")
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 70%;">Question</th>
+                                <th class="text-center" style="width: 30%;">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var question in criteria.Questions)
+                            {
+                                <tr>
+                                    <td>@question.Description</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-@(question.ScoreValue >= 4 ? "success" :
+                                                                                                             question.ScoreValue >= 3 ? "primary" :
+                                                                                                             question.ScoreValue >= 2 ? "warning" : "danger") fs-6">
+                                    @question.ScoreValue / 5
+                                </span>
+                            </td>
+                        </tr>
+                                                }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Comments Section -->
+    @if (!string.IsNullOrEmpty(Model.Comments))
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Additional Comments</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">@Model.Comments</p>
+            </div>
+        </div>
+    }
+
+    <!-- Action Buttons -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <a asp-action="Delete" asp-route-id="@Model.EvaluationId" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Delete Evaluation
+            </a>
+        </div>
+    </div>
+</div>
+

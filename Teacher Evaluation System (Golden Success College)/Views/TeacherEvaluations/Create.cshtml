@@ -1,0 +1,207 @@
+﻿<!-- ============================================ -->
+<!-- CREATE VIEW: Views/TeacherEvaluations/Create.cshtml -->
+<!-- ============================================ -->
+@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.EvaluationFormViewModel
+
+@{
+    ViewData["Title"] = "Create Evaluation";
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Teacher Evaluation Form</h2>
+            <hr />
+        </div>
+    </div>
+
+    <form id="evaluationForm" method="post" asp-action="Create">
+        @Html.AntiForgeryToken()
+        
+        <!-- Validation Summary -->
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        <!-- Evaluation Details -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Evaluation Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Teacher <span class="text-danger">*</span></label>
+                        <select class="form-select" name="TeacherId" required>
+                            <option value="">-- Select Teacher --</option>
+                            @foreach (var teacher in ViewBag.Teachers as SelectList)
+                            {
+                                <option value="@teacher.Value" selected="@(teacher.Value == Model.TeacherId.ToString())">
+                                    @teacher.Text
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Subject <span class="text-danger">*</span></label>
+                        <select class="form-select" name="SubjectId" required>
+                            <option value="">-- Select Subject --</option>
+                            @foreach (var subject in ViewBag.Subjects as SelectList)
+                            {
+                                <option value="@subject.Value" selected="@(subject.Value == Model.SubjectId.ToString())">
+                                    @subject.Text
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Student <span class="text-danger">*</span></label>
+                        <select class="form-select" name="StudentId" required>
+                            <option value="">-- Select Student --</option>
+                            @foreach (var student in ViewBag.Students as SelectList)
+                            {
+                                <option value="@student.Value" selected="@(student.Value == Model.StudentId.ToString())">
+                                    @student.Text
+                                </option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="IsAnonymous" 
+                                   id="isAnonymous" value="true" @(Model.IsAnonymous ? "checked" : "")>
+                            <label class="form-check-label" for="isAnonymous">
+                                Submit as Anonymous Evaluation
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rating Scale Info -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Rating Scale</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li><strong>5</strong> - Frequently observed / collaboratively demonstrated</li>
+                    <li><strong>4</strong> - Occasionally observed / collaboratively demonstrated</li>
+                    <li><strong>3</strong> - Sometimes observed / publicly demonstrated</li>
+                    <li><strong>2</strong> - Rarely observed / collaboratively demonstrated</li>
+                    <li><strong>1</strong> - Not observed at all</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Evaluation Questions by Criteria -->
+        @for (int i = 0; i < Model.CriteriaGroups.Count; i++)
+        {
+            var criteria = Model.CriteriaGroups[i];
+            
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">@criteria.CriteriaName</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60%;">Question</th>
+                                    <th class="text-center">1</th>
+                                    <th class="text-center">2</th>
+                                    <th class="text-center">3</th>
+                                    <th class="text-center">4</th>
+                                    <th class="text-center">5</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int j = 0; j < criteria.Questions.Count; j++)
+                                {
+                                    var question = criteria.Questions[j];
+                                    var questionIndex = Model.CriteriaGroups
+                                        .Take(i)
+                                        .Sum(c => c.Questions.Count) + j;
+                                    
+                                    <tr>
+                                        <td>
+                                            @((questionIndex + 1)). @question.Description
+                                            <input type="hidden" 
+                                                   name="QuestionScores[@questionIndex].QuestionId" 
+                                                   value="@question.QuestionId" />
+                                        </td>
+                                        @for (int score = 1; score <= 5; score++)
+                                        {
+                                            <td class="text-center">
+                                                <input type="radio" 
+                                                       name="QuestionScores[@questionIndex].ScoreValue" 
+                                                       value="@score" 
+                                                       required
+                                                       @(question.ScoreValue == score ? "checked" : "") />
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Comments Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Additional Comments (Optional)</h5>
+            </div>
+            <div class="card-body">
+                <textarea class="form-control" name="Comments" rows="4" 
+                          maxlength="1000" placeholder="Share your feedback...">@Model.Comments</textarea>
+                <small class="text-muted">Maximum 1000 characters</small>
+            </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="bi bi-check-circle"></i> Submit Evaluation
+                </button>
+                <a asp-action="Index" class="btn btn-secondary btn-lg">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Form validation feedback
+        document.getElementById('evaluationForm').addEventListener('submit', function(e) {
+            const radios = document.querySelectorAll('input[type="radio"]');
+            const questionGroups = {};
+            
+            radios.forEach(radio => {
+                const name = radio.name;
+                if (!questionGroups[name]) {
+                    questionGroups[name] = false;
+                }
+                if (radio.checked) {
+                    questionGroups[name] = true;
+                }
+            });
+            
+            const allAnswered = Object.values(questionGroups).every(val => val === true);
+            
+            if (!allAnswered) {
+                e.preventDefault();
+                alert('Please answer all questions before submitting.');
+            }
+        });
+    </script>
+}

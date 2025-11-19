@@ -1,0 +1,41 @@
+﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.ViewModels.QuestionIndexViewModel>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Questions</h1>
+
+<p>
+    <a asp-action="Create" class="btn btn-primary">Create New</a>
+</p>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Criteria</th>
+            <th>Descriptions</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>@item.CriteriaName</td>
+                <td>
+                    @foreach (var desc in item.Descriptions)
+                    {
+                        <div>@desc</div>
+                    }
+                </td>
+            <td>
+                @* Use strongly typed QuestionIds list safely *@
+                <a asp-action="Edit" asp-route-id="@item.QuestionIds.First()" class="btn btn-sm btn-primary">Edit</a>
+                <a asp-action="Details" asp-route-id="@item.QuestionIds.First()" class="btn btn-sm btn-info">Details</a>
+                <a asp-action="Delete" asp-route-id="@item.QuestionIds.First()" class="btn btn-sm btn-danger">Delete</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

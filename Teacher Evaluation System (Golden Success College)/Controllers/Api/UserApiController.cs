@@ -8,21 +8,46 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class UserApiController : ControllerBase
+    public class UsersApiController : ControllerBase
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
 
-        public UserApiController(Teacher_Evaluation_System__Golden_Success_College_Context context)
+        public UsersApiController(Teacher_Evaluation_System__Golden_Success_College_Context context)
         {
             _context = context;
         }
 
-        // GET: api/UserApi/5
+        // GET: api/UsersApi
+        [HttpGet]
+        public async Task<IActionResult> GetUsers()
+        {
+            var users = await _context.User
+                .Include(u => u.Role)
+                .ToListAsync();
+
+            var data = users.Select(u => new
+            {
+                userId = u.UserId,
+                fullName = u.FullName,
+                email = u.Email,
+                roleId = u.RoleId,
+                role = u.Role != null ? new { id = u.RoleId, name = u.Role.Name } : null
+            });
+
+            return Ok(new
+            {
+                success = true,
+                data = data
+            });
+        }
+
+        // GET: api/UsersApi/5
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser(int id)
         {
-            var user = await _context.User.Include(u => u.Role)
-                                           .FirstOrDefaultAsync(u => u.UserId == id);
+            var user = await _context.User
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.UserId == id);
 
             if (user == null)
                 return NotFound(new { success = false, message = "User not found" });
@@ -41,17 +66,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             });
         }
 
-        // POST: api/UserApi
+        // POST: api/UsersApi
         [HttpPost]
         public async Task<IActionResult> PostUser(User user)
         {
-            if (!string.IsNullOrWhiteSpace(user.Password))
-                user.Password = PasswordHelper.HashPassword(user.Password);
+            // Hash password
+            user.Password = PasswordHelper.HashPassword(user.Password);
 
             _context.User.Add(user);
             await _context.SaveChangesAsync();
 
-            // Load role
             var role = await _context.Role.FirstOrDefaultAsync(r => r.RoleId == user.RoleId);
 
             return Ok(new
@@ -64,12 +88,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     fullName = user.FullName,
                     email = user.Email,
                     roleId = user.RoleId,
-                    role = new { id = role.RoleId, name = role.Name }
+                    role = role != null ? new { id = role.RoleId, name = role.Name } : null
                 }
             });
         }
 
-        // PUT: api/UserApi/5
+        // PUT: api/UsersApi/5
         [HttpPut("{id}")]
         public async Task<IActionResult> PutUser(int id, User user)
         {
@@ -80,10 +104,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             if (existingUser == null)
                 return NotFound(new { success = false, message = "User not found" });
 
-            if (!string.IsNullOrWhiteSpace(user.Password))
+            // If password changed, re-hash
+            if (!string.IsNullOrWhiteSpace(user.Password) &&
+                !PasswordHelper.VerifyPassword(user.Password, existingUser.Password))
             {
-                if (!PasswordHelper.VerifyPassword(user.Password, existingUser.Password))
-                    user.Password = PasswordHelper.HashPassword(user.Password);
+                user.Password = PasswordHelper.HashPassword(user.Password);
             }
             else
             {
@@ -105,12 +130,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     fullName = user.FullName,
                     email = user.Email,
                     roleId = user.RoleId,
-                    role = new { id = role.RoleId, name = role.Name }
+                    role = role != null ? new { id = role.RoleId, name = role.Name } : null
                 }
             });
         }
 
-        // DELETE: api/UserApi/5
+        // DELETE: api/UsersApi/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {

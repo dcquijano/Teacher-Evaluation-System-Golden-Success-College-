@@ -1,0 +1,95 @@
+﻿@using Microsoft.AspNetCore.Http
+@{
+    bool isAdmin = User.IsInRole("Admin");
+    bool isSuperAdmin = User.IsInRole("Super Admin");
+    bool isStudent = User.IsInRole("Student");
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] Teacher Evaluation System</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Teacher_Evaluation_System__Golden_Success_College_.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Teacher Evaluation System</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+            
+
+
+                        <ul class="navbar-nav flex-grow-1">
+
+                            @* Admin / Super Admin *@
+                            @if (isAdmin || isSuperAdmin)
+                            {
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Roles" asp-action="Index">Role</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Users" asp-action="Index">User</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Levels" asp-action="Index">Level</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Sections" asp-action="Index">Section</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Students" asp-action="Index">Student</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Subjects" asp-action="Index">Subject</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Teachers" asp-action="Index">Teacher</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Criteria" asp-action="Index">Criteria</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Questions" asp-action="Index">Questions</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Evaluations" asp-action="Index">Evaluations</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Scores" asp-action="Index">Scores</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="TeacherEvaluations" asp-action="Index">Teacher Evaluations</a></li>
+
+                                <span class="navbar-text text-muted ms-auto">
+                                    @User.Identity?.Name  Role: <strong>@(isAdmin ? "Admin" : "Super Admin")</strong>
+                                </span>
+
+                                <a class="btn btn-outline-danger" asp-controller="Auth" asp-action="Logout">Logout</a>
+                            }
+
+                            @* Student *@
+                            @if (isStudent)
+                            {
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Dashboard" asp-action="Index">Dashboard</a></li>
+                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="TeacherEvaluations" asp-action="Index">Teacher Evaluations</a></li>
+
+                                <span class="navbar-text text-muted ms-auto">
+                                    @User.Identity?.Name  Role: <strong>Student</strong>
+                                </span>
+
+                                <a class="btn btn-sm btn-danger" asp-controller="Auth" asp-action="Logout">Logout</a>
+                            }
+
+                        </ul>
+
+                   
+                 
+               
+                </div>
+              
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+   @*  <footer class="border-top footer text-muted">
+        <div class="container">
+            &copy; 2025 - Teacher Evaluation System (Golden Success College)  - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        </div>
+    </footer> *@
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

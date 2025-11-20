@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
+using Teacher_Evaluation_System__Golden_Success_College_.Helper;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
@@ -67,6 +68,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             {
                 // Set default role
                 student.RoleId = 1; // Student
+
+                // Hash the password before saving
+                if (!string.IsNullOrEmpty(student.Password))
+                {
+                    student.Password = PasswordHelper.HashPassword(student.Password);
+                }
 
                 // Set CollegeYearLevel automatically
                 var level = await _context.Level.FindAsync(student.LevelId);
@@ -145,6 +152,22 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                         student.CollegeYearLevel = 0; // None
                     }
 
+                    // Fetch existing student from DB
+                    var existingStudent = await _context.Student.AsNoTracking().FirstOrDefaultAsync(s => s.StudentId == id);
+                    if (existingStudent == null)
+                        return NotFound();
+
+                    // Hash password if it was changed
+                    if (!string.IsNullOrEmpty(student.Password) && student.Password != existingStudent.Password)
+                    {
+                        student.Password = PasswordHelper.HashPassword(student.Password);
+                    }
+                    else
+                    {
+                        // Keep existing hashed password if not changed
+                        student.Password = existingStudent.Password;
+                    }
+
                     _context.Update(student);
                     await _context.SaveChangesAsync();
                 }
@@ -166,6 +189,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             return View(student);
         }
+
 
 
         // GET: Students/Delete/5

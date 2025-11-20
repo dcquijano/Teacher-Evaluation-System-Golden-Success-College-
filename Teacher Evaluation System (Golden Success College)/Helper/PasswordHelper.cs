@@ -11,15 +11,21 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Helper
         }
         public static bool VerifyPassword(string enteredPassword, string storedHashedPassword)
         {
+            if (string.IsNullOrEmpty(enteredPassword) || string.IsNullOrEmpty(storedHashedPassword))
+            {
+                // Either password or hash is null/empty, cannot verify
+                return false;
+            }
+
             try
             {
                 return BCrypt.Net.BCrypt.Verify(enteredPassword, storedHashedPassword);
             }
             catch (SaltParseException ex)
             {
-                // Log the error message (if necessary)
+                // Log error if needed
                 Console.WriteLine($"Error verifying password: {ex.Message}");
-                return false; // Return false if there is an issue with the salt
+                return false;
             }
         }
     }

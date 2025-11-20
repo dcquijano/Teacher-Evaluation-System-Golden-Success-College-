@@ -1,58 +1,130 @@
-﻿<!-- ============================================ -->
-<!-- DETAILS VIEW: Views/TeacherEvaluations/Details.cshtml -->
-<!-- ============================================ -->
-@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.EvaluationResultViewModel
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.EvaluationResultViewModel
 
 @{
     ViewData["Title"] = "Evaluation Details";
+    var isAdminOrSuperAdmin = User.IsInRole("SuperAdmin") || User.IsInRole("Admin");
+    Layout = "_Layoutadmin";
 }
 
 <div class="container mt-4">
     <div class="row mb-4">
         <div class="col-md-12">
-            <h2>Evaluation Details</h2>
+            <h2><i class="bi bi-file-text"></i> Evaluation Details</h2>
             <a asp-action="Index" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to List
             </a>
         </div>
     </div>
 
+    <!-- Success Message -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
     <!-- Evaluation Summary -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Evaluation Summary</h5>
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Evaluation Summary</h5>
         </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-3">
-                    <strong>Teacher:</strong>
-                    <p>@Model.TeacherName</p>
+                <div class="col-md-3 mb-3">
+                    @if (!string.IsNullOrEmpty(Model.TeacherPicturePath))
+                    {
+                        <img src="@Url.Content(Model.TeacherPicturePath)"
+                             alt="Teacher Picture"
+                             class="img-fluid rounded-circle"
+                             style="width:150px;height:150px;object-fit:cover;">
+                    }
+                    else
+                    {
+                        <div class="text-center">
+                            <i class="bi bi-person-circle" style="font-size: 150px; color: #6c757d;"></i>
+                        </div>
+                    }
                 </div>
-                <div class="col-md-3">
-                    <strong>Subject:</strong>
-                    <p>@Model.SubjectName</p>
-                </div>
-                <div class="col-md-3">
-                    <strong>Student:</strong>
-                    <p>@Model.StudentName</p>
-                </div>
-                <div class="col-md-3">
-                    <strong>Date Evaluated:</strong>
-                    <p>@Model.DateEvaluated.ToString("MMMM dd, yyyy")</p>
+                <div class="col-md-9">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong><i class="bi bi-person"></i> Teacher:</strong>
+                            <p class="mb-0">@Model.TeacherName</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong><i class="bi bi-building"></i> Department:</strong>
+                            <p class="mb-0">@(Model.TeacherDepartment ?? "N/A")</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong><i class="bi bi-book"></i> Subject:</strong>
+                            <p class="mb-0">@Model.SubjectName</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong><i class="bi bi-person-badge"></i> Student:</strong>
+                            <p class="mb-0">
+                                @Model.StudentName
+                                @if (Model.IsAnonymous && !isAdminOrSuperAdmin)
+                                {
+                                    <i class="bi bi-incognito text-muted ms-1" title="Anonymous Evaluation"></i>
+                                }
+                            </p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong><i class="bi bi-calendar"></i> Date Evaluated:</strong>
+                            <p class="mb-0">@Model.DateEvaluated.ToString("MMMM dd, yyyy")</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong><i class="bi bi-shield-check"></i> Anonymous:</strong>
+                            <p class="mb-0">
+                                @if (Model.IsAnonymous)
+                                {
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Yes
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-x-circle"></i> No
+                                    </span>
+                                }
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="row mt-3">
+
+            <div class="row mt-4">
                 <div class="col-md-12">
                     <div class="alert alert-info">
-                        <h4 class="alert-heading">Overall Average Score</h4>
-                        <h2 class="mb-0">@Model.OverallAverage.ToString("F2") / 5.00</h2>
-                        <div class="progress mt-2" style="height: 30px;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h4 class="alert-heading mb-0">
+                                    <i class="bi bi-star-fill"></i> Overall Average Score
+                                </h4>
+                            </div>
+                            <div>
+                                <h2 class="mb-0">
+                                    <span class="badge bg-@(Model.OverallAverage >= 4 ? "success" :
+                                                                                                      Model.OverallAverage >= 3 ? "primary" :
+                                                                                                      Model.OverallAverage >= 2 ? "warning" : "danger")">
+                                        @Model.OverallAverage.ToString("F2") / 5.00
+                                    </span>
+                                </h2>
+                            </div>
+                        </div>
+                        <div class="progress mt-3" style="height: 30px;">
                             <div class="progress-bar bg-@(Model.OverallAverage >= 4 ? "success" :
                                                                                            Model.OverallAverage >= 3 ? "primary" :
                                                                                            Model.OverallAverage >= 2 ? "warning" : "danger")"
                                  role="progressbar"
-                                 style="width: @((Model.OverallAverage / 5) * 100)%">
-                                @Model.OverallAverage.ToString("F2")
+                                 style="width: @((Model.OverallAverage / 5) * 100)%"
+                                 aria-valuenow="@Model.OverallAverage"
+                                 aria-valuemin="0"
+                                 aria-valuemax="5">
+                                <strong>@Model.OverallAverage.ToString("F2")</strong>
                             </div>
                         </div>
                     </div>
@@ -66,9 +138,11 @@
     {
         <div class="card mb-4">
             <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">@criteria.CriteriaName</h5>
-                <span class="badge bg-light text-dark">
-                    Average: @criteria.CriteriaAverage.ToString("F2")
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> @criteria.CriteriaName
+                </h5>
+                <span class="badge bg-light text-dark fs-6">
+                    Average: @criteria.CriteriaAverage.ToString("F2") / 5.00
                 </span>
             </div>
             <div class="card-body">
@@ -76,40 +150,72 @@
                     <table class="table table-bordered table-hover">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 70%;">Question</th>
-                                <th class="text-center" style="width: 30%;">Score</th>
+                                <th style="width: 5%;">#</th>
+                                <th style="width: 65%;">Question</th>
+                                <th class="text-center" style="width: 15%;">Score</th>
+                                <th class="text-center" style="width: 15%;">Rating</th>
                             </tr>
                         </thead>
                         <tbody>
+                            @{
+                                int questionNumber = 1;
+                            }
                             @foreach (var question in criteria.Questions)
                             {
                                 <tr>
+                                    <td class="text-center">@questionNumber</td>
                                     <td>@question.Description</td>
                                     <td class="text-center">
                                         <span class="badge bg-@(question.ScoreValue >= 4 ? "success" :
-                                                                                                             question.ScoreValue >= 3 ? "primary" :
-                                                                                                             question.ScoreValue >= 2 ? "warning" : "danger") fs-6">
+                                                                                                              question.ScoreValue >= 3 ? "primary" :
+                                                                                                              question.ScoreValue >= 2 ? "warning" : "danger") fs-6">
                                     @question.ScoreValue / 5
                                 </span>
                             </td>
-                        </tr>
-                                                }
+                            <td class="text-center">
+                                @for (int i = 1; i <= 5; i++)
+                                        {
+                                            if (i <= question.ScoreValue)
+                                            {
+                                                <i class="bi bi-star-fill text-warning"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-star text-muted"></i>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                                questionNumber++;
+                            }
                         </tbody>
-                    </table>
-                </div>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="2" class="text-end"><strong>Criteria Average:</strong></td>
+                                <td colspan="2" class="text-center">
+                                    <span class="badge bg-@(criteria.CriteriaAverage >= 4 ? "success" :
+                                                                                                      criteria.CriteriaAverage >= 3 ? "primary" :
+                                                                                                      criteria.CriteriaAverage >= 2 ? "warning" : "danger") fs-6">
+                                    @criteria.CriteriaAverage.ToString("F2") / 5.00
+                                </span>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
-    }
+    </div>
+        }
 
     <!-- Comments Section -->
     @if (!string.IsNullOrEmpty(Model.Comments))
     {
         <div class="card mb-4">
             <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0">Additional Comments</h5>
+                <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Additional Comments</h5>
             </div>
             <div class="card-body">
-                <p class="mb-0">@Model.Comments</p>
+                <p class="mb-0" style="white-space: pre-wrap;">@Model.Comments</p>
             </div>
         </div>
     }
@@ -117,10 +223,15 @@
     <!-- Action Buttons -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <a asp-action="Delete" asp-route-id="@Model.EvaluationId" class="btn btn-danger">
-                <i class="bi bi-trash"></i> Delete Evaluation
-            </a>
+          
+            @if (isAdminOrSuperAdmin)
+            {
+                <a asp-action="Delete" asp-route-id="@Model.EvaluationId" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Delete Evaluation
+                </a>
+            }
         </div>
     </div>
 </div>
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

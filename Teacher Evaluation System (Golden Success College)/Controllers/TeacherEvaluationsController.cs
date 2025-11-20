@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
 using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
@@ -17,6 +19,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: Evaluations
+        [Authorize(Roles = "Student,Admin,Super Admin")]
         public async Task<IActionResult> Index(string? filterTeacher, string? filterSubject,
             DateTime? filterDateFrom, DateTime? filterDateTo)
         {
@@ -26,6 +29,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .Include(e => e.Student)
                 .Include(e => e.Scores)
                 .AsQueryable();
+
+            // Check if user is Admin or SuperAdmin
+            var isAdminOrSuperAdmin = User.IsInRole("Super Admin") || User.IsInRole("Admin");
+
+            // If user is a student, only show their evaluations
+            if (User.IsInRole("Student") && !isAdminOrSuperAdmin)
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                query = query.Where(e => e.StudentId == userId);
+            }
 
             // Apply filters
             if (!string.IsNullOrEmpty(filterTeacher))
@@ -64,7 +77,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     SubjectName = e.Subject?.SubjectName,
                     TeacherName = e.Teacher?.FullName,
                     TeacherPicturePath = e.Teacher?.PicturePath,
-                    StudentName = e.IsAnonymous ? "Anonymous" : e.Student?.FullName,
+                    // Only show student name if: NOT anonymous OR user is Admin/SuperAdmin
+                    StudentName = (e.IsAnonymous && !isAdminOrSuperAdmin) ? "Anonymous" : e.Student?.FullName,
                     IsAnonymous = e.IsAnonymous,
                     DateEvaluated = e.DateEvaluated,
                     Comments = e.Comments,
@@ -75,11 +89,22 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View(viewModel);
         }
 
-
-
-        // GET: Evaluations/Create
+        // GET: Evaluations/Create - Only Students can create
+        [Authorize(Roles = "Student,Admin,Super Admin")]
         public async Task<IActionResult> Create(int? teacherId, int? subjectId, int? studentId)
         {
+            // Get logged-in user ID
+            var loggedInUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userType = User.FindFirstValue("UserType");
+            var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+
+            // For students, use their own ID
+            // For admins, allow them to specify or leave blank
+            int actualStudentId = studentId ?? 0;
+            if (userType == "Student" && !isAdminOrSuperAdmin)
+            {
+                actualStudentId = loggedInUserId;
+            }
 
             // Load all criteria
             var allCriteria = await _context.Criteria
@@ -126,7 +151,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             {
                 TeacherId = teacherId ?? 0,
                 SubjectId = subjectId ?? 0,
-                StudentId = studentId ?? 0,
+                StudentId = actualStudentId,
                 TeacherPicturePath = teacherPicturePath,
                 TeacherDepartment = teacherDepartment,
                 TeacherName = teacherName,
@@ -135,25 +160,71 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             };
 
             // Populate dropdowns
-            await PopulateDropdowns(teacherId, subjectId, studentId);
+            await PopulateDropdowns(teacherId, subjectId, actualStudentId);
 
             return View(viewModel);
         }
 
-        // POST: Evaluations/Create
+        // POST: Evaluations/Create - Only Students can submit
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Student,Admin,Super Admin")]
         public async Task<IActionResult> Create(SubmitEvaluationViewModel model)
         {
+            // Get logged-in user info
+            var loggedInUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userType = User.FindFirstValue("UserType");
+            var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+
+            // For students, override the StudentId with their own ID
+            if (userType == "Student" && !isAdminOrSuperAdmin)
+            {
+                model.StudentId = loggedInUserId;
+            }
+
+            // Validate StudentId
+            if (model.StudentId <= 0)
+            {
+                ModelState.AddModelError("StudentId", "Please select a student.");
+            }
+
+            // Validate TeacherId
+            if (model.TeacherId <= 0)
+            {
+                ModelState.AddModelError("TeacherId", "Please select a teacher.");
+            }
+
+            // Validate SubjectId
+            if (model.SubjectId <= 0)
+            {
+                ModelState.AddModelError("SubjectId", "Please select a subject.");
+            }
+
             if (ModelState.IsValid)
             {
                 try
                 {
                     // Validate that all questions have been answered
                     var totalQuestions = await _context.Question.CountAsync();
-                    if (model.QuestionScores.Count != totalQuestions)
+                    if (model.QuestionScores == null || model.QuestionScores.Count != totalQuestions)
                     {
                         ModelState.AddModelError("", "Please answer all questions.");
+                        return await RedirectToCreateWithError(model);
+                    }
+
+                    // Check for duplicate evaluation (same student, teacher, subject on same day)
+                    var today = DateTime.Today;
+                    var tomorrow = today.AddDays(1);
+                    var existingEvaluation = await _context.Evaluation
+                        .AnyAsync(e => e.StudentId == model.StudentId
+                                    && e.TeacherId == model.TeacherId
+                                    && e.SubjectId == model.SubjectId
+                                    && e.DateEvaluated >= today
+                                    && e.DateEvaluated < tomorrow);
+
+                    if (existingEvaluation)
+                    {
+                        ModelState.AddModelError("", "You have already evaluated this teacher for this subject today.");
                         return await RedirectToCreateWithError(model);
                     }
 
@@ -195,6 +266,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: Evaluations/Details/5
+        [Authorize(Roles = "Student,Admin,Super Admin")]
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -214,6 +286,19 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (evaluation == null)
             {
                 return NotFound();
+            }
+
+            // Check if user is Admin or SuperAdmin
+            var isAdminOrSuperAdmin = User.IsInRole("Super Admin") || User.IsInRole("Admin");
+
+            // If user is a student, only allow them to view their own evaluations
+            if (User.IsInRole("Student") && !isAdminOrSuperAdmin)
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                if (evaluation.StudentId != userId)
+                {
+                    return Forbid(); // Returns 403 Forbidden
+                }
             }
 
             // Group scores by criteria
@@ -238,7 +323,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 TeacherPicturePath = evaluation.Teacher?.PicturePath,
                 TeacherDepartment = evaluation.Teacher?.Department,
                 SubjectName = evaluation.Subject?.SubjectName,
-                StudentName = evaluation.IsAnonymous ? "Anonymous" : evaluation.Student?.FullName,
+                // Only show student name if: NOT anonymous OR user is Admin/SuperAdmin
+                StudentName = (evaluation.IsAnonymous && !isAdminOrSuperAdmin) ? "Anonymous" : evaluation.Student?.FullName,
                 IsAnonymous = evaluation.IsAnonymous,
                 DateEvaluated = evaluation.DateEvaluated,
                 Comments = evaluation.Comments,
@@ -250,6 +336,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: Evaluations/TeacherSummary/5
+        [Authorize(Roles = "Student,Admin,Super Admin")]
         public async Task<IActionResult> TeacherSummary(int? id, int? subjectId)
         {
             if (id == null)
@@ -354,6 +441,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: Evaluations/Delete/5
+        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -373,12 +461,26 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return NotFound();
             }
 
+            // Check if user is Admin or SuperAdmin for anonymous display
+            var isAdminOrSuperAdmin = User.IsInRole("Super Admin") || User.IsInRole("Admin");
+
+            // Set student name based on role and anonymity
+            if (evaluation.IsAnonymous && !isAdminOrSuperAdmin)
+            {
+                ViewBag.StudentDisplayName = "Anonymous";
+            }
+            else
+            {
+                ViewBag.StudentDisplayName = evaluation.Student?.FullName;
+            }
+
             return View(evaluation);
         }
 
         // POST: Evaluations/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var evaluation = await _context.Evaluation
@@ -397,9 +499,42 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // Helper method to populate dropdowns
+        // AJAX endpoint to get subjects for a teacher
+        [HttpGet]
+        public async Task<JsonResult> GetTeacherSubjects(int teacherId)
+        {
+            // Get distinct subjects this teacher has been evaluated on
+            var subjects = await _context.Evaluation
+                .Where(e => e.TeacherId == teacherId)
+                .Include(e => e.Subject)
+                .Select(e => e.Subject)
+                .Distinct()
+                .OrderBy(s => s!.SubjectName)
+                .Select(s => new {
+                    value = s!.SubjectId,
+                    text = s.SubjectName
+                })
+                .ToListAsync();
+
+            // If no evaluations exist yet, return all subjects
+            if (!subjects.Any())
+            {
+                subjects = await _context.Subject
+                    .OrderBy(s => s.SubjectName)
+                    .Select(s => new {
+                        value = s.SubjectId,
+                        text = s.SubjectName
+                    })
+                    .ToListAsync();
+            }
+
+            return Json(subjects);
+        }
+
         private async Task PopulateDropdowns(int? teacherId = null, int? subjectId = null, int? studentId = null)
         {
+            var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+
             ViewBag.Teachers = new SelectList(
                 await _context.Teacher
                     .Where(t => t.IsActive)
@@ -417,13 +552,27 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 subjectId
             );
 
-            ViewBag.Students = new SelectList(
-                await _context.Student.OrderBy(s => s.FullName).ToListAsync(),
-                "StudentId",
-                "FullName",
-                studentId
-            );
+            if (isAdminOrSuperAdmin)
+            {
+                ViewBag.Students = new SelectList(
+                    await _context.Student.OrderBy(s => s.FullName).ToListAsync(),
+                    "StudentId",
+                    "FullName",
+                    studentId
+                );
+            }
+            else
+            {
+                // For Students: only include their own record
+                var loggedInUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var student = await _context.Student.FindAsync(loggedInUserId);
+
+                ViewBag.Students = student != null
+                    ? new SelectList(new List<Student> { student }, "StudentId", "FullName", studentId)
+                    : new SelectList(Enumerable.Empty<Student>(), "StudentId", "FullName");
+            }
         }
+
 
         // Helper method to redirect back to Create with errors
         private async Task<IActionResult> RedirectToCreateWithError(SubmitEvaluationViewModel model)
@@ -450,10 +599,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     {
                         QuestionId = q.QuestionId,
                         Description = q.Description,
-                        ScoreValue = model.QuestionScores
+                        ScoreValue = model.QuestionScores?
                             .Where(qs => qs.QuestionId == q.QuestionId)
                             .Select(qs => qs.ScoreValue)
-                            .FirstOrDefault()
+                            .FirstOrDefault() ?? 0
                     }).ToList()
             }).ToList();
 

@@ -1,1 +1,260 @@
-﻿c
+﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.Models.User>
+
+@{
+    ViewData["Title"] = "Users";
+    Layout = "_Layoutadmin";
+}
+
+<h1>Users</h1>
+
+<div class="mb-3">
+    <button class="btn btn-primary" id="btnCreateUser">
+        <i class="bi bi-plus-circle"></i> Create User
+    </button>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:1050; text-align:center;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="mt-2">Loading...</div>
+    </div>
+</div>
+
+<table class="table table-bordered table-striped table-sm align-middle w-100" id="usersTable">
+    <thead>
+        <tr>
+            <th>Full Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr data-id="@item.UserId">
+                <td>@item.FullName</td>
+                <td>@item.Email</td>
+                <td>@item.Role?.Name</td>
+                <td>
+                    <button class="btn btn-sm btn-warning btn-edit" data-id="@item.UserId">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger btn-delete" data-id="@item.UserId">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Modal for Create/Edit -->
+<div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalLabel">Create/Edit User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <input type="hidden" id="UserId" name="UserId" />
+                    <div class="mb-3">
+                        <label for="FullName" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="FullName" name="FullName" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="Email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="Email" name="Email" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="Password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="Password" name="Password" />
+                        <small class="form-text text-muted">Leave empty to keep existing password.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="RoleId" class="form-label">Role</label>
+                        <select class="form-select" id="RoleId" name="RoleId" required>
+                            <option value="">-- Select Role --</option>
+                            @foreach (var role in ViewBag.RoleId as SelectList)
+                            {
+                                <option value="@role.Value">@role.Text</option>
+                            }
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveUserBtn">
+                    <i class="bi bi-check-circle"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            var toastEl = $('#toast');
+            var toastMessage = $('#toastMessage');
+            var loadingOverlay = $('#loadingOverlay');
+
+            function showToast(message, bgClass = 'bg-success') {
+                toastEl.removeClass('bg-success bg-danger bg-warning').addClass(bgClass);
+                toastMessage.text(message);
+                var toast = new bootstrap.Toast(toastEl[0]);
+                toast.show();
+            }
+
+            function showLoading(show = true) {
+                show ? loadingOverlay.show() : loadingOverlay.hide();
+            }
+
+            var userModalEl = document.getElementById('userModal');
+            var userModal = new bootstrap.Modal(userModalEl);
+
+            var table = $('#usersTable').DataTable({
+                "columnDefs": [{ "orderable": false, "targets": 3 }]
+            });
+
+            // Open modal for create
+            $('#btnCreateUser').click(function () {
+                $('#userModalLabel').text('Create User');
+                $('#UserId').val('');
+                $('#FullName').val('');
+                $('#Email').val('');
+                $('#Password').val('');
+                $('#RoleId').val('');
+                userModal.show();
+            });
+
+            // Open modal for edit
+            $(document).on('click', '.btn-edit', function () {
+                var id = $(this).data('id');
+                showLoading(true);
+
+                $.get(`/api/UsersApi/${id}`, function (res) {
+                    showLoading(false);
+                    if (res.success) {
+                        $('#userModalLabel').text('Edit User');
+                        $('#UserId').val(res.data.userId);
+                        $('#FullName').val(res.data.fullName);
+                        $('#Email').val(res.data.email);
+                        $('#Password').val('');
+                        $('#RoleId').val(res.data.roleId || '');
+                        userModal.show();
+                    } else {
+                        showToast(res.message, 'bg-danger');
+                    }
+                }).fail(function () {
+                    showLoading(false);
+                    showToast('Failed to load user', 'bg-danger');
+                });
+            });
+
+            // Save user (create or edit)
+            $('#saveUserBtn').click(function () {
+                var userId = $('#UserId').val();
+                var isEdit = userId && userId != '';
+                var userData = {
+                    userId: isEdit ? parseInt(userId) : 0,
+                    fullName: $('#FullName').val(),
+                    email: $('#Email').val(),
+                    password: $('#Password').val(),
+                    roleId: parseInt($('#RoleId').val())
+                };
+
+                var url = isEdit ? `/api/UsersApi/${userId}` : '/api/UsersApi';
+                var type = isEdit ? 'PUT' : 'POST';
+
+                showLoading(true);
+                $.ajax({
+                    url: url,
+                    type: type,
+                    contentType: 'application/json',
+                    data: JSON.stringify(userData),
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            var roleName = res.data.role ? res.data.role.name : '';
+                            if (isEdit) {
+                                var row = table.row($(`tr[data-id="${userId}"]`));
+                                row.data([
+                                    res.data.fullName,
+                                    res.data.email,
+                                    roleName,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.userId}"><i class="bi bi-pencil-square"></i></button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.userId}"><i class="bi bi-trash"></i></button>`
+                                ]).draw(false);
+                            } else {
+                                var newRow = table.row.add([
+                                    res.data.fullName,
+                                    res.data.email,
+                                    roleName,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.userId}"><i class="bi bi-pencil-square"></i></button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.userId}"><i class="bi bi-trash"></i></button>`
+                                ]).draw(false).node();
+                                $(newRow).attr('data-id', res.data.userId);
+                            }
+                            showToast(res.message);
+                            userModal.hide();
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function () {
+                        showLoading(false);
+                        showToast('Failed to save!', 'bg-danger');
+                    }
+                });
+            });
+
+            // Delete user
+            $(document).on('click', '.btn-delete', function () {
+                if (!confirm('Are you sure you want to delete this user?')) return;
+                var id = $(this).data('id');
+
+                showLoading(true);
+                $.ajax({
+                    url: `/api/UsersApi/${id}`,
+                    type: 'DELETE',
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            table.row($(`tr[data-id="${id}"]`)).remove().draw();
+                            showToast(res.message);
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function () {
+                        showLoading(false);
+                        showToast('Failed to delete!', 'bg-danger');
+                    }
+                });
+            });
+        });
+    </script>
+}

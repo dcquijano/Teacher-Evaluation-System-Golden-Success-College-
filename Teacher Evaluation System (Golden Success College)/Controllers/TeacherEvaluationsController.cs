@@ -9,6 +9,7 @@ using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 {
+    [Authorize(Roles = "Student,Admin,Super Admin")]
     public class TeacherEvaluationsController : Controller
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
@@ -18,53 +19,50 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             _context = context;
         }
 
-        // GET: Evaluations
-        [Authorize(Roles = "Student,Admin,Super Admin")]
-        public async Task<IActionResult> Index(string? filterTeacher, string? filterSubject,
-            DateTime? filterDateFrom, DateTime? filterDateTo)
+        // GET: TeacherEvaluations/Index - Shows evaluation history
+        public async Task<IActionResult> Index(
+            string filterTeacher,
+            string filterSubject,
+            DateTime? filterDateFrom,
+            DateTime? filterDateTo)
         {
-            var query = _context.Evaluation
-                .Include(e => e.Subject)
+            var studentId = GetCurrentStudentId();
+            var isAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+
+            IQueryable<Evaluation> query = _context.Evaluation
                 .Include(e => e.Teacher)
+                .Include(e => e.Subject)
                 .Include(e => e.Student)
                 .Include(e => e.Scores)
-                .AsQueryable();
+                    .ThenInclude(s => s.Question)
+                        .ThenInclude(q => q.Criteria);
 
-            // Check if user is Admin or SuperAdmin
-            var isAdminOrSuperAdmin = User.IsInRole("Super Admin") || User.IsInRole("Admin");
-
-            // If user is a student, only show their evaluations
-            if (User.IsInRole("Student") && !isAdminOrSuperAdmin)
+            // If student – restrict to his own evaluations
+            if (!isAdmin)
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-                query = query.Where(e => e.StudentId == userId);
+                query = query.Where(e => e.StudentId == studentId);
             }
 
-            // Apply filters
-            if (!string.IsNullOrEmpty(filterTeacher))
-            {
-                query = query.Where(e => e.Teacher!.FullName!.Contains(filterTeacher));
-            }
+            // Filters
+            if (!string.IsNullOrWhiteSpace(filterTeacher))
+                query = query.Where(e => e.Teacher.FullName.Contains(filterTeacher));
 
-            if (!string.IsNullOrEmpty(filterSubject))
-            {
-                query = query.Where(e => e.Subject!.SubjectName!.Contains(filterSubject));
-            }
+            if (!string.IsNullOrWhiteSpace(filterSubject))
+                query = query.Where(e =>
+                    e.Subject.SubjectName.Contains(filterSubject) ||
+                    e.Subject.SubjectCode.Contains(filterSubject));
 
             if (filterDateFrom.HasValue)
-            {
-                query = query.Where(e => e.DateEvaluated >= filterDateFrom.Value);
-            }
+                query = query.Where(e => e.DateEvaluated >= filterDateFrom.Value.Date);
 
             if (filterDateTo.HasValue)
-            {
-                query = query.Where(e => e.DateEvaluated <= filterDateTo.Value);
-            }
+                query = query.Where(e => e.DateEvaluated <= filterDateTo.Value.Date.AddDays(1).AddTicks(-1));
 
             var evaluations = await query
                 .OrderByDescending(e => e.DateEvaluated)
                 .ToListAsync();
 
+            // Build ViewModel
             var viewModel = new EvaluationListViewModel
             {
                 FilterTeacherName = filterTeacher,
@@ -74,11 +72,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 Evaluations = evaluations.Select(e => new EvaluationListItemViewModel
                 {
                     EvaluationId = e.EvaluationId,
-                    SubjectName = e.Subject?.SubjectName,
+                    SubjectName = $"{e.Subject?.SubjectCode} - {e.Subject?.SubjectName}",
                     TeacherName = e.Teacher?.FullName,
-                    TeacherPicturePath = e.Teacher?.PicturePath,
-                    // Only show student name if: NOT anonymous OR user is Admin/SuperAdmin
-                    StudentName = (e.IsAnonymous && !isAdminOrSuperAdmin) ? "Anonymous" : e.Student?.FullName,
+                    TeacherPicturePath = string.IsNullOrEmpty(e.Teacher?.PicturePath)
+                                         ? "/images/default-teacher.png"
+                                         : e.Teacher.PicturePath,
+                    StudentName = e.IsAnonymous ? "Anonymous" : e.Student?.FullName,
                     IsAnonymous = e.IsAnonymous,
                     DateEvaluated = e.DateEvaluated,
                     Comments = e.Comments,
@@ -89,369 +88,265 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View(viewModel);
         }
 
-        // GET: Evaluations/Create - Only Students can create
-        [Authorize(Roles = "Student,Admin,Super Admin")]
-        public async Task<IActionResult> Create(int? teacherId, int? subjectId, int? studentId)
-        {
-            // Get logged-in user ID
-            var loggedInUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var userType = User.FindFirstValue("UserType");
-            var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
 
-            // For students, use their own ID
-            // For admins, allow them to specify or leave blank
-            int actualStudentId = studentId ?? 0;
-            if (userType == "Student" && !isAdminOrSuperAdmin)
+        // GET: TeacherEvaluations/Create - Shows evaluation form
+        public async Task<IActionResult> Create()
+        {
+            var studentId = GetCurrentStudentId();
+            var student = await _context.Student.FindAsync(studentId);
+
+            // Get all available (not yet evaluated) teacher-subject pairs
+            var availablePairs = await GetAvailableTeacherSubjectPairs(studentId);
+
+            if (!availablePairs.Any())
             {
-                actualStudentId = loggedInUserId;
+                ViewBag.HasAvailableEnrollments = false;
+                TempData["Message"] = "You have completed all evaluations. Thank you!";
+
+                var emptyViewModel = new EvaluationFormViewModel
+                {
+                    StudentId = studentId,
+                    StudentName = student?.FullName
+                };
+
+                ViewBag.Teachers = new List<SelectListItem>();
+                ViewBag.Subjects = new List<SelectListItem>();
+                ViewBag.Students = new SelectList(new[] { new { Value = studentId, Text = student?.FullName } }, "Value", "Text", studentId);
+
+                return View(emptyViewModel);
             }
 
-            // Load all criteria
-            var allCriteria = await _context.Criteria
-                .OrderBy(c => c.CriteriaId)
-                .ToListAsync();
+            // Get distinct teachers from available pairs
+            var teachers = availablePairs
+                .Select(x => x.Teacher)
+                .DistinctBy(t => t.TeacherId)
+                .OrderBy(t => t.FullName)
+                .Select(t => new SelectListItem
+                {
+                    Value = t.TeacherId.ToString(),
+                    Text = t.FullName
+                })
+                .ToList();
 
-            // Load all questions
-            var allQuestions = await _context.Question
+            // Load all questions grouped by criteria
+            var criteriaGroups = await _context.Question
+                .Include(q => q.Criteria)
                 .OrderBy(q => q.CriteriaId)
                 .ThenBy(q => q.QuestionId)
-                .ToListAsync();
-
-            // Group questions by criteria
-            var criteriaGroups = allCriteria.Select(c => new CriteriaWithQuestionsViewModel
-            {
-                CriteriaId = c.CriteriaId,
-                CriteriaName = c.Name,
-                Questions = allQuestions
-                    .Where(q => q.CriteriaId == c.CriteriaId)
-                    .Select(q => new QuestionResponseViewModel
+                .GroupBy(q => q.Criteria)
+                .Select(g => new CriteriaWithQuestionsViewModel
+                {
+                    CriteriaId = g.Key.CriteriaId,
+                    CriteriaName = g.Key.Name,
+                    Questions = g.Select(q => new QuestionResponseViewModel
                     {
                         QuestionId = q.QuestionId,
                         Description = q.Description,
                         ScoreValue = 0
                     }).ToList()
-            }).ToList();
-
-            // Load teacher info if teacherId is provided
-            string? teacherPicturePath = null;
-            string? teacherDepartment = null;
-            string? teacherName = null;
-            if (teacherId.HasValue && teacherId.Value > 0)
-            {
-                var teacher = await _context.Teacher.FindAsync(teacherId.Value);
-                if (teacher != null)
-                {
-                    teacherPicturePath = teacher.PicturePath;
-                    teacherDepartment = teacher.Department;
-                    teacherName = teacher.FullName;
-                }
-            }
+                })
+                .ToListAsync();
 
             var viewModel = new EvaluationFormViewModel
             {
-                TeacherId = teacherId ?? 0,
-                SubjectId = subjectId ?? 0,
-                StudentId = actualStudentId,
-                TeacherPicturePath = teacherPicturePath,
-                TeacherDepartment = teacherDepartment,
-                TeacherName = teacherName,
+                StudentId = studentId,
+                StudentName = student?.FullName,
                 CriteriaGroups = criteriaGroups,
-                DateEvaluated = DateTime.Now
+                IsAnonymous = true
             };
 
-            // Populate dropdowns based on enrollment
-            await PopulateEnrollmentDropdowns(teacherId, subjectId, actualStudentId);
+            ViewBag.Teachers = teachers;
+            ViewBag.Subjects = new List<SelectListItem>();
+            ViewBag.Students = new SelectList(new[] { new { Value = studentId, Text = student?.FullName } }, "Value", "Text", studentId);
+            ViewBag.HasAvailableEnrollments = true;
 
             return View(viewModel);
         }
 
-        // POST: Evaluations/Create - Only Students can submit
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Student,Admin,Super Admin")]
-        public async Task<IActionResult> Create(SubmitEvaluationViewModel model)
+        // GET: TeacherEvaluations/GetEnrolledSubjects - AJAX endpoint for cascading dropdown
+        [HttpGet]
+        public async Task<JsonResult> GetEnrolledSubjects(int teacherId, int? studentId = null)
         {
-            // Get logged-in user info
-            var loggedInUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var userType = User.FindFirstValue("UserType");
-            var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+            var currentStudentId = studentId ?? GetCurrentStudentId();
 
-            // For students, override the StudentId with their own ID
-            if (userType == "Student" && !isAdminOrSuperAdmin)
-            {
-                model.StudentId = loggedInUserId;
-            }
+            var availablePairs = await GetAvailableTeacherSubjectPairs(currentStudentId);
 
-            // Validate StudentId
-            if (model.StudentId <= 0)
-            {
-                ModelState.AddModelError("StudentId", "Please select a student.");
-            }
-
-            // Validate TeacherId
-            if (model.TeacherId <= 0)
-            {
-                ModelState.AddModelError("TeacherId", "Please select a teacher.");
-            }
-
-            // Validate SubjectId
-            if (model.SubjectId <= 0)
-            {
-                ModelState.AddModelError("SubjectId", "Please select a subject.");
-            }
-
-            // Validate enrollment exists
-            var enrollmentExists = await _context.Enrollment
-                .AnyAsync(e => e.StudentId == model.StudentId
-                            && e.TeacherId == model.TeacherId
-                            && e.SubjectId == model.SubjectId);
-
-            if (!enrollmentExists)
-            {
-                ModelState.AddModelError("", "Invalid evaluation: The selected student is not enrolled with this teacher for this subject.");
-            }
-
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    // Validate that all questions have been answered
-                    var totalQuestions = await _context.Question.CountAsync();
-                    if (model.QuestionScores == null || model.QuestionScores.Count != totalQuestions)
-                    {
-                        ModelState.AddModelError("", "Please answer all questions.");
-                        return await RedirectToCreateWithError(model);
-                    }
-
-                    // Check for duplicate evaluation (same student, teacher, subject on same day)
-                    var today = DateTime.Today;
-                    var tomorrow = today.AddDays(1);
-                    var existingEvaluation = await _context.Evaluation
-                        .AnyAsync(e => e.StudentId == model.StudentId
-                                    && e.TeacherId == model.TeacherId
-                                    && e.SubjectId == model.SubjectId
-                                    && e.DateEvaluated >= today
-                                    && e.DateEvaluated < tomorrow);
-
-                    if (existingEvaluation)
-                    {
-                        ModelState.AddModelError("", "You have already evaluated this teacher for this subject today.");
-                        return await RedirectToCreateWithError(model);
-                    }
-
-                    // Create the evaluation
-                    var evaluation = new Evaluation
-                    {
-                        TeacherId = model.TeacherId,
-                        SubjectId = model.SubjectId,
-                        StudentId = model.StudentId,
-                        IsAnonymous = model.IsAnonymous,
-                        Comments = model.Comments,
-                        DateEvaluated = DateTime.Now
-                    };
-
-                    _context.Evaluation.Add(evaluation);
-                    await _context.SaveChangesAsync();
-
-                    // Create scores for each question
-                    var scores = model.QuestionScores.Select(qs => new Score
-                    {
-                        EvaluationId = evaluation.EvaluationId,
-                        QuestionId = qs.QuestionId,
-                        ScoreValue = qs.ScoreValue
-                    }).ToList();
-
-                    _context.Score.AddRange(scores);
-                    await _context.SaveChangesAsync();
-
-                    TempData["SuccessMessage"] = "Evaluation submitted successfully!";
-                    return RedirectToAction(nameof(Details), new { id = evaluation.EvaluationId });
-                }
-                catch (Exception ex)
-                {
-                    ModelState.AddModelError("", $"Error saving evaluation: {ex.Message}");
-                }
-            }
-
-            return await RedirectToCreateWithError(model);
-        }
-
-        // GET: Evaluations/Details/5
-        [Authorize(Roles = "Student,Admin,Super Admin")]
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var evaluation = await _context.Evaluation
-                .Include(e => e.Subject)
-                .Include(e => e.Teacher)
-                .Include(e => e.Student)
-                .Include(e => e.Scores)
-                    .ThenInclude(s => s.Question)
-                        .ThenInclude(q => q!.Criteria)
-                .FirstOrDefaultAsync(m => m.EvaluationId == id);
-
-            if (evaluation == null)
-            {
-                return NotFound();
-            }
-
-            // Check if user is Admin or SuperAdmin
-            var isAdminOrSuperAdmin = User.IsInRole("Super Admin") || User.IsInRole("Admin");
-
-            // If user is a student, only allow them to view their own evaluations
-            if (User.IsInRole("Student") && !isAdminOrSuperAdmin)
-            {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-                if (evaluation.StudentId != userId)
-                {
-                    return Forbid(); // Returns 403 Forbidden
-                }
-            }
-
-            // Group scores by criteria
-            var criteriaResults = evaluation.Scores!
-                .GroupBy(s => s.Question!.Criteria)
-                .Select(g => new CriteriaResultViewModel
-                {
-                    CriteriaName = g.Key!.Name,
-                    Questions = g.Select(s => new QuestionResultViewModel
-                    {
-                        Description = s.Question!.Description,
-                        ScoreValue = s.ScoreValue
-                    }).ToList(),
-                    CriteriaAverage = g.Average(s => s.ScoreValue)
+            var subjects = availablePairs
+                .Where(x => x.TeacherId == teacherId)
+                .Select(x => new {
+                    value = x.SubjectId,
+                    text = $"{x.Subject.SubjectCode} - {x.Subject.SubjectName}"
                 })
                 .ToList();
 
+            return Json(subjects);
+        }
+
+        // GET: TeacherEvaluations/GetEnrolledStudents - AJAX endpoint for admin
+        [HttpGet]
+        [Authorize(Roles = "Admin,Super Admin")]
+        public async Task<JsonResult> GetEnrolledStudents(int teacherId, int subjectId)
+        {
+            // Get all students enrolled in this teacher-subject combination
+            var enrolledStudents = await _context.Enrollment
+                .Include(e => e.Student)
+                .Where(e => e.TeacherId == teacherId && e.SubjectId == subjectId)
+                .Select(e => new { e.StudentId, e.Student.FullName })
+                .Distinct()
+                .ToListAsync();
+
+            // Get students who have already evaluated this combination
+            var evaluatedStudents = await _context.Evaluation
+                .Where(e => e.TeacherId == teacherId && e.SubjectId == subjectId)
+                .Select(e => e.StudentId)
+                .ToListAsync();
+
+            // Filter out students who already evaluated
+            var availableStudents = enrolledStudents
+                .Where(s => !evaluatedStudents.Contains(s.StudentId))
+                .Select(s => new {
+                    value = s.StudentId,
+                    text = s.FullName
+                })
+                .ToList();
+
+            return Json(availableStudents);
+        }
+
+        // POST: TeacherEvaluations/Create - Submit evaluation
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(SubmitEvaluationViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ErrorMessage"] = "Please complete all required fields.";
+                return RedirectToAction(nameof(Create));
+            }
+
+            var studentId = GetCurrentStudentId();
+
+            // Verify student is enrolled in this teacher-subject combination
+            var isEnrolled = await _context.Enrollment
+                .AnyAsync(e => e.StudentId == studentId
+                    && e.TeacherId == model.TeacherId
+                    && e.SubjectId == model.SubjectId);
+
+            if (!isEnrolled)
+            {
+                TempData["ErrorMessage"] = "You are not enrolled in this teacher's class.";
+                return RedirectToAction(nameof(Create));
+            }
+
+            // Check if already evaluated
+            var alreadyEvaluated = await _context.Evaluation
+                .AnyAsync(e => e.StudentId == studentId
+                    && e.TeacherId == model.TeacherId
+                    && e.SubjectId == model.SubjectId);
+
+            if (alreadyEvaluated)
+            {
+                TempData["ErrorMessage"] = "You have already evaluated this teacher for this subject.";
+                return RedirectToAction(nameof(Create));
+            }
+
+            // Create evaluation
+            var evaluation = new Evaluation
+            {
+                StudentId = studentId,
+                TeacherId = model.TeacherId,
+                SubjectId = model.SubjectId,
+                IsAnonymous = model.IsAnonymous,
+                DateEvaluated = DateTime.Now,
+                Comments = model.Comments,
+                Scores = model.Scores.Select(s => new Score
+                {
+                    QuestionId = s.QuestionId,
+                    ScoreValue = s.ScoreValue
+                }).ToList()
+            };
+
+            _context.Evaluation.Add(evaluation);
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Evaluation submitted successfully! Thank you for your feedback.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // GET: TeacherEvaluations/Details/5
+        public async Task<IActionResult> Details(int? id)
+        {
+            if (id == null)
+                return NotFound();
+
+            var isAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+
+            // Load evaluation with full navigation
+            var evaluation = await _context.Evaluation
+                .Include(e => e.Teacher)
+                .Include(e => e.Subject)
+                .Include(e => e.Student)
+                .Include(e => e.Scores)
+                    .ThenInclude(s => s.Question)
+                        .ThenInclude(q => q.Criteria)
+                .FirstOrDefaultAsync(e => e.EvaluationId == id);
+
+            if (evaluation == null)
+                return NotFound();
+
+            // ---- SECURITY FIX ----
+            if (!isAdmin)
+            {
+                // Students must match the evaluation's student
+                var currentStudentId = GetCurrentStudentId();
+
+                if (currentStudentId == null)
+                    return Unauthorized();  // not logged in as student
+
+                if (evaluation.StudentId != currentStudentId)
+                    return Unauthorized();  // accessing someone else's evaluation
+            }
+            // ------------------------
+
+            // Hide student name if anonymous
+            string studentNameToShow =
+                evaluation.IsAnonymous && !isAdmin
+                    ? "Anonymous"
+                    : evaluation.Student?.FullName;
+
+            // Build ViewModel
             var viewModel = new EvaluationResultViewModel
             {
                 EvaluationId = evaluation.EvaluationId,
                 TeacherName = evaluation.Teacher?.FullName,
                 TeacherPicturePath = evaluation.Teacher?.PicturePath,
                 TeacherDepartment = evaluation.Teacher?.Department,
-                SubjectName = evaluation.Subject?.SubjectName,
-                // Only show student name if: NOT anonymous OR user is Admin/SuperAdmin
-                StudentName = (evaluation.IsAnonymous && !isAdminOrSuperAdmin) ? "Anonymous" : evaluation.Student?.FullName,
+                SubjectName = $"{evaluation.Subject?.SubjectCode} - {evaluation.Subject?.SubjectName}",
+                StudentName = studentNameToShow,
                 IsAnonymous = evaluation.IsAnonymous,
                 DateEvaluated = evaluation.DateEvaluated,
                 Comments = evaluation.Comments,
                 OverallAverage = evaluation.AverageScore,
-                CriteriaResults = criteriaResults
-            };
-
-            return View(viewModel);
-        }
-
-        // GET: Evaluations/TeacherSummary/5
-        [Authorize(Roles = "Student,Admin,Super Admin")]
-        public async Task<IActionResult> TeacherSummary(int? id, int? subjectId)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var teacher = await _context.Teacher.FindAsync(id);
-            if (teacher == null)
-            {
-                return NotFound();
-            }
-
-            // Get all evaluations for this teacher
-            var query = _context.Evaluation
-                .Include(e => e.Subject)
-                .Include(e => e.Scores)
-                    .ThenInclude(s => s.Question)
-                        .ThenInclude(q => q!.Criteria)
-                .Where(e => e.TeacherId == id);
-
-            // Filter by subject if specified
-            if (subjectId.HasValue)
-            {
-                query = query.Where(e => e.SubjectId == subjectId);
-            }
-
-            var evaluations = await query.ToListAsync();
-
-            if (!evaluations.Any())
-            {
-                ViewBag.Message = "No evaluations found for this teacher.";
-                return View(new TeacherEvaluationSummaryViewModel
-                {
-                    TeacherId = id.Value,
-                    TeacherName = teacher.FullName
-                });
-            }
-
-            // Calculate summary statistics
-            var allScores = evaluations.SelectMany(e => e.Scores!).ToList();
-
-            var criteriaSummaries = allScores
-                .GroupBy(s => s.Question!.Criteria)
-                .Select(cg => new CriteriaSummaryViewModel
-                {
-                    CriteriaName = cg.Key!.Name,
-                    CriteriaAverage = cg.Average(s => s.ScoreValue),
-                    QuestionSummaries = cg
-                        .GroupBy(s => s.Question)
-                        .Select(qg => new QuestionSummaryViewModel
+                CriteriaResults = evaluation.Scores
+                    .GroupBy(s => s.Question?.Criteria?.Name)
+                    .Select(g => new CriteriaResultViewModel
+                    {
+                        CriteriaName = g.Key,
+                        CriteriaAverage = g.Average(s => s.ScoreValue),
+                        Questions = g.Select(s => new QuestionResultViewModel
                         {
-                            Description = qg.Key!.Description,
-                            AverageScore = qg.Average(s => s.ScoreValue),
-                            ResponseCount = qg.Count(),
-                            ScoreDistribution = qg
-                                .GroupBy(s => s.ScoreValue)
-                                .ToDictionary(g => g.Key, g => g.Count())
-                        })
-                        .ToList()
-                })
-                .ToList();
-
-            var subjectName = "All Subjects";
-            if (subjectId.HasValue)
-            {
-                var firstEval = evaluations.FirstOrDefault();
-                if (firstEval?.Subject != null)
-                {
-                    subjectName = firstEval.Subject.SubjectName ?? "Unknown Subject";
-                }
-            }
-
-            var viewModel = new TeacherEvaluationSummaryViewModel
-            {
-                TeacherId = id.Value,
-                TeacherName = teacher.FullName,
-                SubjectName = subjectName,
-                TotalEvaluations = evaluations.Count,
-                OverallAverage = evaluations.Average(e => e.AverageScore),
-                CriteriaSummaries = criteriaSummaries,
-                RecentComments = evaluations
-                    .Where(e => !string.IsNullOrEmpty(e.Comments))
-                    .OrderByDescending(e => e.DateEvaluated)
-                    .Take(10)
-                    .Select(e => e.Comments!)
-                    .ToList()
+                            Description = s.Question?.Description,
+                            ScoreValue = s.ScoreValue
+                        }).ToList()
+                    }).ToList()
             };
-
-            // Populate subject dropdown for filtering
-            ViewBag.Subjects = new SelectList(
-                await _context.Subject
-                    .Where(s => _context.Evaluation
-                        .Any(e => e.TeacherId == id && e.SubjectId == s.SubjectId))
-                    .ToListAsync(),
-                "SubjectId",
-                "SubjectName",
-                subjectId
-            );
 
             return View(viewModel);
         }
 
-        // GET: Evaluations/Delete/5
+
+
+        // GET: TeacherEvaluations/Delete/5
         [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> Delete(int? id)
         {
@@ -461,10 +356,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             }
 
             var evaluation = await _context.Evaluation
-                .Include(e => e.Subject)
                 .Include(e => e.Teacher)
+                .Include(e => e.Subject)
                 .Include(e => e.Student)
-                .Include(e => e.Scores)
                 .FirstOrDefaultAsync(m => m.EvaluationId == id);
 
             if (evaluation == null)
@@ -472,23 +366,22 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return NotFound();
             }
 
-            // Check if user is Admin or SuperAdmin for anonymous display
-            var isAdminOrSuperAdmin = User.IsInRole("Super Admin") || User.IsInRole("Admin");
-
-            // Set student name based on role and anonymity
-            if (evaluation.IsAnonymous && !isAdminOrSuperAdmin)
+            // Build simple view model for delete confirmation
+            var viewModel = new EvaluationListItemViewModel
             {
-                ViewBag.StudentDisplayName = "Anonymous";
-            }
-            else
-            {
-                ViewBag.StudentDisplayName = evaluation.Student?.FullName;
-            }
+                EvaluationId = evaluation.EvaluationId,
+                TeacherName = evaluation.Teacher?.FullName,
+                TeacherPicturePath = evaluation.Teacher?.PicturePath,
+                SubjectName = $"{evaluation.Subject?.SubjectCode} - {evaluation.Subject?.SubjectName}",
+                StudentName = evaluation.IsAnonymous ? "Anonymous" : evaluation.Student?.FullName,
+                DateEvaluated = evaluation.DateEvaluated,
+                IsAnonymous = evaluation.IsAnonymous
+            };
 
-            return View(evaluation);
+            return View(viewModel);
         }
 
-        // POST: Evaluations/Delete/5
+        // POST: TeacherEvaluations/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,Super Admin")]
@@ -500,175 +393,54 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             if (evaluation != null)
             {
-                // Delete all associated scores first
-                _context.Score.RemoveRange(evaluation.Scores!);
+                // Remove all scores first (cascade delete might handle this, but being explicit)
+                _context.Score.RemoveRange(evaluation.Scores);
+
+                // Remove the evaluation
                 _context.Evaluation.Remove(evaluation);
                 await _context.SaveChangesAsync();
+
+                TempData["SuccessMessage"] = "Evaluation deleted successfully.";
             }
 
-            TempData["SuccessMessage"] = "Evaluation deleted successfully!";
             return RedirectToAction(nameof(Index));
         }
 
-        // AJAX endpoint to get subjects for a teacher based on enrollment
-        [HttpGet]
-        public async Task<JsonResult> GetEnrolledSubjects(int teacherId, int? studentId = null)
+        // Helper: Get current logged-in student ID
+        private int GetCurrentStudentId()
         {
-            var query = _context.Enrollment
-                .Where(e => e.TeacherId == teacherId)
+            var studentIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(studentIdClaim))
+            {
+                throw new UnauthorizedAccessException("User not authenticated");
+            }
+            return int.Parse(studentIdClaim);
+        }
+
+        // Helper: Get available teacher-subject pairs (not yet evaluated)
+        private async Task<List<Enrollment>> GetAvailableTeacherSubjectPairs(int studentId)
+        {
+            // Get all enrollments for this student
+            var enrollments = await _context.Enrollment
+                .Include(e => e.Teacher)
                 .Include(e => e.Subject)
-                .AsQueryable();
-
-            if (studentId.HasValue && studentId.Value > 0)
-                query = query.Where(e => e.StudentId == studentId.Value);
-
-            var subjects = await query
-                .Select(e => e.Subject!)
-                .Distinct()
-                .OrderBy(s => s.SubjectName)
-                .Select(s => new { value = s.SubjectId, text = s.SubjectName })
+                .Where(e => e.StudentId == studentId && e.Teacher.IsActive)
                 .ToListAsync();
 
-            return Json(subjects);
-        }
-
-
-        // AJAX endpoint to get enrolled students for a teacher and subject
-        [HttpGet]
-        public async Task<JsonResult> GetEnrolledStudents(int teacherId, int? subjectId = null)
-        {
-            var query = _context.Enrollment
-                .Where(e => e.TeacherId == teacherId)
-                .Include(e => e.Student)
-                .AsQueryable();
-
-            if (subjectId.HasValue && subjectId.Value > 0)
-                query = query.Where(e => e.SubjectId == subjectId.Value);
-
-            var students = await query
-                .Select(e => e.Student!)
-                .Distinct()
-                .OrderBy(s => s.FullName)
-                .Select(s => new { value = s.StudentId, text = s.FullName })
+            // Get already evaluated pairs
+            var evaluatedPairs = await _context.Evaluation
+                .Where(e => e.StudentId == studentId)
+                .Select(e => new { e.TeacherId, e.SubjectId })
                 .ToListAsync();
 
-            return Json(students);
-        }
+            // Filter out evaluated pairs
+            var available = enrollments
+                .Where(enrollment => !evaluatedPairs.Any(ep =>
+                    ep.TeacherId == enrollment.TeacherId &&
+                    ep.SubjectId == enrollment.SubjectId))
+                .ToList();
 
-
-        // Helper method to populate dropdowns based on enrollment
-        private async Task PopulateEnrollmentDropdowns(int? teacherId = null, int? subjectId = null, int? studentId = null)
-        {
-            var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
-            var loggedInUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var userType = User.FindFirstValue("UserType");
-
-            // Teachers dropdown
-            if (userType == "Student" && !isAdminOrSuperAdmin)
-            {
-                // Only teachers the student is enrolled with
-                var enrolledTeachers = await _context.Enrollment
-                    .Where(e => e.StudentId == loggedInUserId)
-                    .Include(e => e.Teacher)
-                    .Select(e => e.Teacher!)
-                    .Where(t => t.IsActive)
-                    .Distinct()
-                    .OrderBy(t => t.FullName)
-                    .ToListAsync();
-
-                ViewBag.Teachers = new SelectList(enrolledTeachers, "TeacherId", "FullName", teacherId);
-            }
-            else
-            {
-                // Admin sees all teachers
-                var allTeachers = await _context.Teacher
-                    .Where(t => t.IsActive)
-                    .OrderBy(t => t.FullName)
-                    .ToListAsync();
-                ViewBag.Teachers = new SelectList(allTeachers, "TeacherId", "FullName", teacherId);
-            }
-
-            // Subjects dropdown is loaded dynamically via AJAX
-            ViewBag.Subjects = new SelectList(Enumerable.Empty<Subject>(), "SubjectId", "SubjectName", subjectId);
-
-            // Students dropdown
-            if (isAdminOrSuperAdmin)
-            {
-                ViewBag.Students = new SelectList(Enumerable.Empty<Student>(), "StudentId", "FullName", studentId);
-            }
-            else
-            {
-                var student = await _context.Student.FindAsync(loggedInUserId);
-                ViewBag.Students = student != null
-                    ? new SelectList(new List<Student> { student }, "StudentId", "FullName", studentId)
-                    : new SelectList(Enumerable.Empty<Student>(), "StudentId", "FullName");
-            }
-        }
-
-
-
-        // Helper method to redirect back to Create with errors
-        private async Task<IActionResult> RedirectToCreateWithError(SubmitEvaluationViewModel model)
-        {
-            // Load all criteria
-            var allCriteria = await _context.Criteria
-                .OrderBy(c => c.CriteriaId)
-                .ToListAsync();
-
-            // Load all questions
-            var allQuestions = await _context.Question
-                .OrderBy(q => q.CriteriaId)
-                .ThenBy(q => q.QuestionId)
-                .ToListAsync();
-
-            // Group questions by criteria and restore submitted scores
-            var criteriaGroups = allCriteria.Select(c => new CriteriaWithQuestionsViewModel
-            {
-                CriteriaId = c.CriteriaId,
-                CriteriaName = c.Name,
-                Questions = allQuestions
-                    .Where(q => q.CriteriaId == c.CriteriaId)
-                    .Select(q => new QuestionResponseViewModel
-                    {
-                        QuestionId = q.QuestionId,
-                        Description = q.Description,
-                        ScoreValue = model.QuestionScores?
-                            .Where(qs => qs.QuestionId == q.QuestionId)
-                            .Select(qs => qs.ScoreValue)
-                            .FirstOrDefault() ?? 0
-                    }).ToList()
-            }).ToList();
-
-            // Load teacher info
-            string? teacherPicturePath = null;
-            string? teacherDepartment = null;
-            string? teacherName = null;
-            if (model.TeacherId > 0)
-            {
-                var teacher = await _context.Teacher.FindAsync(model.TeacherId);
-                if (teacher != null)
-                {
-                    teacherPicturePath = teacher.PicturePath;
-                    teacherDepartment = teacher.Department;
-                    teacherName = teacher.FullName;
-                }
-            }
-
-            var viewModel = new EvaluationFormViewModel
-            {
-                TeacherId = model.TeacherId,
-                SubjectId = model.SubjectId,
-                StudentId = model.StudentId,
-                IsAnonymous = model.IsAnonymous,
-                Comments = model.Comments,
-                TeacherPicturePath = teacherPicturePath,
-                TeacherDepartment = teacherDepartment,
-                TeacherName = teacherName,
-                CriteriaGroups = criteriaGroups
-            };
-
-            await PopulateEnrollmentDropdowns(model.TeacherId, model.SubjectId, model.StudentId);
-            return View("Create", viewModel);
+            return available;
         }
     }
 }

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.ViewModels
 {
-    // Main ViewModel for the evaluation form (like Image 1)
+    // Main ViewModel for the evaluation form
     public class EvaluationFormViewModel
     {
         public int TeacherId { get; set; }
@@ -17,7 +17,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.ViewModels
         public int StudentId { get; set; }
         public string? StudentName { get; set; }
 
-        public bool IsAnonymous { get; set; }
+        public bool IsAnonymous { get; set; } = true;
 
         [MaxLength(1000)]
         public string? Comments { get; set; }
@@ -26,14 +26,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.ViewModels
 
         // List of criteria with their questions
         public List<CriteriaWithQuestionsViewModel> CriteriaGroups { get; set; } = new();
-
-        // Rating scale information
-        public string RatingScaleDescription { get; set; } =
-            "5 - Frequently observed / collaboratively demonstrated\n" +
-            "4 - Occasionally observed / collaboratively demonstrated\n" +
-            "3 - Sometimes observed / publicly demonstrated\n" +
-            "2 - Rarely observed / collaboratively demonstrated\n" +
-            "1 - Not observed at all";
     }
 
     // Criteria section with its questions
@@ -55,40 +47,39 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.ViewModels
         public int QuestionId { get; set; }
         public string? Description { get; set; }
 
-        [Range(1, 5, ErrorMessage = "Score must be between 1 and 5")]
+        [Range(0, 4, ErrorMessage = "Score must be between 0 and 4")]
         public int ScoreValue { get; set; }
     }
 
     // ViewModel for submitting the evaluation
     public class SubmitEvaluationViewModel
     {
-        [Required]
+        [Required(ErrorMessage = "Please select a teacher")]
+        [Display(Name = "Teacher")]
         public int TeacherId { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Please select a subject")]
+        [Display(Name = "Subject")]
         public int SubjectId { get; set; }
 
-        [Required]
-        public int StudentId { get; set; }
-
-        public bool IsAnonymous { get; set; }
+        [Display(Name = "Submit anonymously")]
+        public bool IsAnonymous { get; set; } = true;
 
         [MaxLength(1000)]
+        [Display(Name = "Additional Comments or Suggestions")]
         public string? Comments { get; set; }
 
-        // List of question scores
         [Required]
-        [MinLength(1, ErrorMessage = "At least one question must be answered")]
-        public List<QuestionScoreDto> QuestionScores { get; set; } = new();
+        public List<ScoreViewModel> Scores { get; set; } = new();
     }
 
-    public class QuestionScoreDto
+    public class ScoreViewModel
     {
         [Required]
         public int QuestionId { get; set; }
 
-        [Required]
-        [Range(1, 5, ErrorMessage = "Score must be between 1 and 5")]
+        [Required(ErrorMessage = "Please rate this item")]
+        [Range(0, 4, ErrorMessage = "Score must be between 0 and 4")]
         public int ScoreValue { get; set; }
     }
 
@@ -150,11 +141,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.ViewModels
         public double AverageScore { get; set; }
         public int ResponseCount { get; set; }
 
-        // Distribution of scores (how many 1s, 2s, 3s, 4s, 5s)
+        // Distribution of scores (how many 0s, 1s, 2s, 3s, 4s)
         public Dictionary<int, int> ScoreDistribution { get; set; } = new();
     }
 
-    // ViewModel for the table display (like Images 2-5)
+    // ViewModel for the table display
     public class EvaluationListViewModel
     {
         public List<EvaluationListItemViewModel> Evaluations { get; set; } = new();
@@ -179,7 +170,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.ViewModels
         public double AverageScore { get; set; }
     }
 
-    // ViewModel for criteria management (Images 2-3)
+    // ViewModel for criteria management
     public class CriteriaManagementViewModel
     {
         public List<CriteriaWithQuestionsListViewModel> Criteria { get; set; } = new();

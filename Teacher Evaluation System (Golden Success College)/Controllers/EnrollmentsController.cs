@@ -21,7 +21,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: Enrollments
-        public async Task<IActionResult> Index()    
+        public async Task<IActionResult> Index()
         {
             var teacher_Evaluation_System__Golden_Success_College_Context = _context.Enrollment.Include(e => e.Student).Include(e => e.Subject).Include(e =>e.Teacher);
             return View(await teacher_Evaluation_System__Golden_Success_College_Context.ToListAsync());

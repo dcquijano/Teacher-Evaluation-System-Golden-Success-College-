@@ -70,11 +70,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
                 .HasForeignKey(e => e.SubjectId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<Enrollment>()
-               .HasOne(e => e.Teacher)
-               .WithMany()
-               .HasForeignKey(e => e.TeacherId)
-               .OnDelete(DeleteBehavior.Restrict);
+      
 
 
         }

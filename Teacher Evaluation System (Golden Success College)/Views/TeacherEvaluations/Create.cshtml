@@ -1,204 +1,381 @@
 ﻿@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.EvaluationFormViewModel
-
+@using System.Text.Json
 @{
     ViewData["Title"] = "Create Evaluation";
     Layout = "_Layoutadmin";
+
+    var isAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+    var userIsStudent = User.IsInRole("Student") && !isAdmin;
+    var hasAvailableEnrollments = ViewBag.HasAvailableEnrollments ?? true;
 }
 
 <div class="container mt-4">
-    <h2><i class="bi bi-clipboard-check"></i> Teacher Evaluation Form</h2>
-    <p class="text-muted">Please rate your teacher on the following criteria based on enrollment</p>
-    <hr />
-
-    <form id="evaluationForm" method="post" asp-action="Create">
-        @Html.AntiForgeryToken()
-        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
-
-        <!-- Evaluation Details -->
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-person-badge"></i> Evaluation Details</h5>
-            </div>
-            <div class="card-body row g-3">
-                <div class="col-md-4">
-                    <label asp-for="TeacherId" class="form-label">Teacher <span class="text-danger">*</span></label>
-                    <select asp-for="TeacherId" class="form-select" asp-items="ViewBag.Teachers" id="teacherSelect" required>
-                        <option value="">-- Select Teacher --</option>
-                    </select>
-                    <div class="invalid-feedback">Please select a teacher.</div>
+    <div class="card shadow-lg">
+        <div class="card-header bg-primary text-white text-center py-4">
+            <h3 class="mb-0">
+                <i class="bi bi-clipboard-check"></i> STUDENT EVALUATION OF TEACHER PERFORMANCE
+            </h3>
+            <p class="mb-0 mt-2">Golden Success College</p>
+        </div>
+        <div class="card-body">
+            @if (!hasAvailableEnrollments && userIsStudent)
+            {
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>All evaluations completed!</strong>
+                    <p class="mb-0">You have already evaluated all your enrolled teachers and subjects. Thank you for your feedback!</p>
+                </div>
+                <a asp-action="Index" class="btn btn-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Evaluations
+                </a>
+            }
+            else
+            {
+                <!-- Important Notice -->
+                <div class="alert alert-info border-start border-primary border-5 mb-4">
+                    <h5 class="alert-heading">
+                        <i class="bi bi-info-circle"></i> Important Note for Students:
+                    </h5>
+                    <p class="mb-2">
+                        Your answers in this form will be kept <strong>strictly confidential</strong> and your name will not be revealed to your teacher.
+                        The results will only be used to help improve teaching methods and make your learning experience better.
+                    </p>
+                    <p class="mb-0">
+                        Please answer honestly and thoughtfully, as there are no right or wrong answers. Your feedback is valuable and appreciated.
+                    </p>
                 </div>
 
-                <div class="col-md-4">
-                    <label asp-for="SubjectId" class="form-label">Subject <span class="text-danger">*</span></label>
-                    <select asp-for="SubjectId" class="form-select" asp-items="ViewBag.Subjects" id="subjectSelect" required disabled>
-                        <option value="">-- Select Subject --</option>
-                    </select>
-                    <div class="invalid-feedback">Please select a subject.</div>
-                </div>
+                <form id="evaluationForm" method="post" asp-action="Create">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
 
-                <div class="col-md-4">
-                    <label asp-for="StudentId" class="form-label">Student <span class="text-danger">*</span></label>
-                    <select asp-for="StudentId" class="form-select" asp-items="ViewBag.Students" id="studentSelect" required>
-                        <option value="">-- Select Student --</option>
-                    </select>
-                    <div class="invalid-feedback">Please select a student.</div>
-                </div>
+                    <!-- Selection Section -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label asp-for="TeacherId" class="form-label fw-bold">
+                                <i class="bi bi-person-workspace"></i> Name of Teacher: <span class="text-danger">*</span>
+                            </label>
+                            <select asp-for="TeacherId" class="form-select form-select-lg" asp-items="ViewBag.Teachers" id="teacherSelect" required>
+                                <option value="">-- Select Teacher --</option>
+                            </select>
+                            <small class="text-muted">Only teachers you're enrolled with</small>
+                        </div>
 
-                <div class="col-md-12 mt-2">
-                    <div class="form-check">
-                        <input asp-for="IsAnonymous" class="form-check-input" type="checkbox" id="isAnonymous" />
-                        <label class="form-check-label" for="isAnonymous">
-                            <i class="bi bi-incognito"></i> Submit as Anonymous Evaluation
-                        </label>
-                        <small class="text-muted d-block">Note: Your identity will only be visible to Super Admin and Admin</small>
+                        <div class="col-md-6">
+                            <label asp-for="SubjectId" class="form-label fw-bold">
+                                <i class="bi bi-book"></i> Subject: <span class="text-danger">*</span>
+                            </label>
+                            <select asp-for="SubjectId" class="form-select form-select-lg" id="subjectSelect" required disabled>
+                                <option value="">-- Select Subject --</option>
+                            </select>
+                            <small class="text-muted">Only subjects you haven't evaluated</small>
+                        </div>
                     </div>
-                </div>
-            </div>
+
+                    <!-- Facilitator and Date Section -->
+                    <div class="row mb-3" id="facilitatorSection" style="display:none;">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Name of FACILITATOR:</label>
+                            <input type="text" class="form-control" readonly value="@Model.StudentName">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Date of EVALUATION:</label>
+                            <input type="text" class="form-control" readonly value="@DateTime.Now.ToString("MMMM dd, yyyy")">
+                        </div>
+                    </div>
+
+                    <!-- Anonymous Checkbox -->
+                    <div class="col-md-12 mb-3" id="anonymousSection" style="display:none;">
+                        <div class="form-check p-3 bg-light rounded">
+                            <input asp-for="IsAnonymous" class="form-check-input" type="checkbox" id="isAnonymous" checked />
+                            <label class="form-check-label fw-bold" for="isAnonymous">
+                                <i class="bi bi-incognito"></i> Submit as Anonymous (recommended)
+                            </label>
+                            <small class="text-muted d-block">Your identity will be hidden from the teacher</small>
+                        </div>
+                    </div>
+
+                    <!-- Rating Scale -->
+                    <div class="card mb-4" id="ratingScaleInfo" style="display:none;">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="bi bi-star-fill"></i> RATING SCALE:</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2"><span class="badge bg-success me-2">4</span> Always observed / excellently demonstrated</li>
+                                <li class="mb-2"><span class="badge bg-primary me-2">3</span> Frequently observed / satisfactorily demonstrated</li>
+                                <li class="mb-2"><span class="badge bg-info me-2">2</span> Sometimes observed / partially demonstrated</li>
+                                <li class="mb-2"><span class="badge bg-warning text-dark me-2">1</span> Rarely observed / needs major improvement</li>
+                                <li class="mb-0"><span class="badge bg-danger me-2">0</span> Not observed at all</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Questions (grouped by criteria) -->
+                    <div id="questionsContainer" style="display:none;">
+                        @for (int i = 0; i < Model.CriteriaGroups.Count; i++)
+                        {
+                            var criteria = Model.CriteriaGroups[i];
+                            <div class="card mb-4">
+                                <div class="card-header bg-secondary text-white">
+                                    <h5 class="mb-0">@criteria.CriteriaName</h5>
+                                </div>
+                                <div class="card-body table-responsive">
+                                    <table class="table table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width:5%;" class="text-center">#</th>
+                                                <th style="width:55%;">Question</th>
+                                                <th class="text-center" style="width:8%;"><div class="fw-bold">4</div></th>
+                                                <th class="text-center" style="width:8%;"><div class="fw-bold">3</div></th>
+                                                <th class="text-center" style="width:8%;"><div class="fw-bold">2</div></th>
+                                                <th class="text-center" style="width:8%;"><div class="fw-bold">1</div></th>
+                                                <th class="text-center" style="width:8%;"><div class="fw-bold">0</div></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @for (int j = 0; j < criteria.Questions.Count; j++)
+                                            {
+                                                var question = criteria.Questions[j];
+                                                var questionIndex = Model.CriteriaGroups.Take(i).Sum(c => c.Questions.Count) + j;
+                                                var questionNumber = questionIndex + 1;
+                                                <tr>
+                                                    <td class="text-center align-middle"><strong>@questionNumber</strong></td>
+                                                    <td class="align-middle">
+                                                        @question.Description
+                                                        <input type="hidden" name="Scores[@questionIndex].QuestionId" value="@question.QuestionId" />
+                                                    </td>
+                                                    @for (int score = 4; score >= 0; score--)
+                                                    {
+                                                        <td class="text-center align-middle">
+                                                            <input type="radio"
+                                                                   name="Scores[@questionIndex].ScoreValue"
+                                                                   value="@score"
+                                                                   class="form-check-input score-radio"
+                                                                   required />
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Total and Average -->
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-6">
+                                        <h5>TOTAL SCORE</h5>
+                                        <h2 class="text-primary"><span id="totalScore">0</span></h2>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h5>AVERAGE SCORE</h5>
+                                        <h2 class="text-success"><span id="averageScore">0.00</span></h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Comments -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-secondary text-white">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-chat-left-text"></i> Additional Comments (Optional)
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small">
+                                    Kindly write your additional comments or suggestions for your teacher.
+                                </p>
+                                <textarea asp-for="Comments" class="form-control" rows="5" maxlength="1000"
+                                          placeholder="Enter your comments here..."></textarea>
+                                <small class="text-muted">Maximum 1000 characters</small>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-center mb-4">
+                            <button type="submit" class="btn btn-success btn-lg px-5" id="submitBtn">
+                                <i class="bi bi-check-circle"></i> Submit Evaluation
+                            </button>
+                            <a asp-action="Index" class="btn btn-secondary btn-lg px-5">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            }
         </div>
-
-        <!-- Rating Scale -->
-        <div class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-star"></i> Rating Scale</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled mb-0">
-                    <li class="mb-2"><span class="badge bg-success me-2">5</span> Frequently observed / collaboratively demonstrated</li>
-                    <li class="mb-2"><span class="badge bg-primary me-2">4</span> Occasionally observed / collaboratively demonstrated</li>
-                    <li class="mb-2"><span class="badge bg-info me-2">3</span> Sometimes observed / publicly demonstrated</li>
-                    <li class="mb-2"><span class="badge bg-warning text-dark me-2">2</span> Rarely observed / collaboratively demonstrated</li>
-                    <li class="mb-2"><span class="badge bg-danger me-2">1</span> Not observed at all</li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- Evaluation Questions -->
-        @for (int i = 0; i < Model.CriteriaGroups.Count; i++)
-        {
-            var criteria = Model.CriteriaGroups[i];
-            <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0"><i class="bi bi-list-check"></i> @criteria.CriteriaName</h5>
-                </div>
-                <div class="card-body table-responsive">
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 60%;">Question</th>
-                                @for (int score = 1; score <= 5; score++)
-                                {
-                                    <th class="text-center" style="width: 8%;">@score</th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (int j = 0; j < criteria.Questions.Count; j++)
-                            {
-                                var question = criteria.Questions[j];
-                                var questionIndex = Model.CriteriaGroups.Take(i).Sum(c => c.Questions.Count) + j;
-
-                                 <tr>
-                                        <td>
-                                            <strong>@((questionIndex + 1)).</strong> @question.Description
-                                            <input type="hidden"
-                                                   name="QuestionScores[@questionIndex].QuestionId"
-                                                   value="@question.QuestionId" />
-                                        </td>
-                                        @for (int score = 1; score <= 5; score++)
-                                        {
-                                            <td class="text-center">
-                                                <input type="radio"
-                                                       class="form-check-input"
-                                                       name="QuestionScores[@questionIndex].ScoreValue"
-                                                       value="@score"
-                                                       required
-                                                       @(question.ScoreValue == score ? "checked" : "") />
-                                            </td>
-                                        }
-                                    </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-
-        <!-- Comments -->
-        <div class="card mb-4">
-            <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Additional Comments (Optional)</h5>
-            </div>
-            <div class="card-body">
-                <textarea asp-for="Comments" class="form-control" rows="4" maxlength="1000" placeholder="Share your feedback and suggestions..."></textarea>
-                <small class="text-muted">Maximum 1000 characters</small>
-            </div>
-        </div>
-
-        <!-- Submit Buttons -->
-        <div class="d-flex gap-2 mb-4">
-            <button type="submit" class="btn btn-success btn-lg"><i class="bi bi-check-circle"></i> Submit Evaluation</button>
-            <a asp-action="Index" class="btn btn-secondary btn-lg"><i class="bi bi-x-circle"></i> Cancel</a>
-        </div>
-    </form>
+    </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+
     <script>
         const teacherSelect = document.getElementById('teacherSelect');
         const subjectSelect = document.getElementById('subjectSelect');
-        const studentSelect = document.getElementById('studentSelect');
-        const isAdmin = @((User.IsInRole("Admin") || User.IsInRole("Super Admin")).ToString().ToLower());
+        const submitBtn = document.getElementById('submitBtn');
 
-        async function loadEnrolledSubjects(teacherId) {
-            subjectSelect.disabled = true;
-            subjectSelect.innerHTML = '<option value="">Loading subjects...</option>';
-            try {
-                const res = await fetch(`/TeacherEvaluations/GetEnrolledSubjects?teacherId=${teacherId}`);
-                const data = await res.json();
-                subjectSelect.innerHTML = data.length === 0 ? '<option value="">No subjects found</option>' : '<option value="">-- Select Subject --</option>';
-                data.forEach(s => subjectSelect.add(new Option(s.text, s.value)));
-                subjectSelect.disabled = data.length === 0;
-            } catch {
-                subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
+        // Loading states
+        function setSubjectLoading(loading = true) {
+            subjectSelect.disabled = loading;
+            if (loading) {
+                subjectSelect.innerHTML = '<option value="">Loading subjects...</option>';
             }
         }
 
-        async function loadEnrolledStudents(teacherId, subjectId) {
-            if (!isAdmin) return;
-            studentSelect.disabled = true;
-            studentSelect.innerHTML = '<option value="">Loading students...</option>';
+        // Show sections after subject is selected
+        function showEvaluationSections() {
+            document.getElementById('facilitatorSection').style.display = 'flex';
+            document.getElementById('anonymousSection').style.display = 'block';
+            document.getElementById('ratingScaleInfo').style.display = 'block';
+            document.getElementById('questionsContainer').style.display = 'block';
+        }
+
+        function hideSections() {
+            document.getElementById('facilitatorSection').style.display = 'none';
+            document.getElementById('anonymousSection').style.display = 'none';
+            document.getElementById('ratingScaleInfo').style.display = 'none';
+            document.getElementById('questionsContainer').style.display = 'none';
+        }
+
+        // Show message
+        function showMessage(message, type = 'warning') {
+            const existingAlerts = document.querySelectorAll('.dynamic-alert');
+            existingAlerts.forEach(alert => alert.remove());
+
+            const alertClass = type === 'success' ? 'alert-success' :
+                              type === 'danger' ? 'alert-danger' : 'alert-warning';
+            const icon = type === 'success' ? 'check-circle' :
+                        type === 'danger' ? 'x-circle' : 'exclamation-triangle';
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show dynamic-alert`;
+            alertDiv.innerHTML = `
+                <i class="bi bi-${icon}"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            document.querySelector('.card-body').insertBefore(alertDiv, document.querySelector('form'));
+            setTimeout(() => alertDiv.remove(), 7000);
+        }
+
+        // Load subjects for selected teacher
+        async function loadSubjects(teacherId) {
+            if (!teacherId) {
+                subjectSelect.disabled = true;
+                subjectSelect.innerHTML = '<option value="">-- Select Teacher First --</option>';
+                hideSections();
+                return;
+            }
+
             try {
-                let url = `/TeacherEvaluations/GetEnrolledStudents?teacherId=${teacherId}`;
-                if (subjectId) url += `&subjectId=${subjectId}`;
+                setSubjectLoading(true);
+
+                const url = `/TeacherEvaluations/GetEnrolledSubjects?teacherId=${teacherId}`;
                 const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to load subjects');
+
                 const data = await res.json();
-                studentSelect.innerHTML = data.length === 0 ? '<option value="">No students found</option>' : '<option value="">-- Select Student --</option>';
-                data.forEach(s => studentSelect.add(new Option(s.text, s.value)));
-                studentSelect.disabled = data.length === 0;
-            } catch {
-                studentSelect.innerHTML = '<option value="">Error loading students</option>';
+
+                subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+
+                if (data.length === 0) {
+                    subjectSelect.innerHTML = '<option value="">No subjects available</option>';
+                    subjectSelect.disabled = true;
+                    showMessage('You have already evaluated all subjects for this teacher. Please select another teacher.', 'warning');
+                    hideSections();
+                } else {
+                    data.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.value;
+                        opt.textContent = s.text;
+                        subjectSelect.appendChild(opt);
+                    });
+                    subjectSelect.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error loading subjects:', error);
+                subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
+                subjectSelect.disabled = true;
+                showMessage('Failed to load subjects. Please refresh the page and try again.', 'danger');
+                hideSections();
             }
         }
 
-        teacherSelect.addEventListener('change', async () => {
+        // Calculate total and average scores
+        function calculateScores() {
+            let total = 0;
+            let count = 0;
+
+            document.querySelectorAll('.score-radio:checked').forEach(function (radio) {
+                total += parseInt(radio.value);
+                count++;
+            });
+
+            document.getElementById('totalScore').textContent = total;
+            document.getElementById('averageScore').textContent = count > 0 ? (total / count).toFixed(2) : '0.00';
+        }
+
+        // Event: Teacher changed
+        teacherSelect?.addEventListener('change', async () => {
             const teacherId = teacherSelect.value;
-            subjectSelect.disabled = true;
-            subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
-            if (isAdmin) studentSelect.innerHTML = '<option value="">-- Select Student --</option>';
-            if (teacherId) {
-                await loadEnrolledSubjects(teacherId);
-                if (isAdmin) await loadEnrolledStudents(teacherId);
+            subjectSelect.value = '';
+            hideSections();
+            await loadSubjects(teacherId);
+        });
+
+        // Event: Subject changed
+        subjectSelect?.addEventListener('change', () => {
+            if (subjectSelect.value) {
+                showEvaluationSections();
+                // Scroll to questions
+                setTimeout(() => {
+                    document.getElementById('ratingScaleInfo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            } else {
+                hideSections();
             }
         });
 
-        if (isAdmin) {
-            subjectSelect.addEventListener('change', () => {
-                if (teacherSelect.value && subjectSelect.value) {
-                    loadEnrolledStudents(teacherSelect.value, subjectSelect.value);
+        // Add score calculation listeners
+        document.querySelectorAll('.score-radio').forEach(radio => {
+            radio.addEventListener('change', calculateScores);
+        });
+
+        // Form validation before submit
+        document.getElementById('evaluationForm')?.addEventListener('submit', function (e) {
+            // Check if all radio buttons are answered
+            const allQuestions = document.querySelectorAll('input[type="radio"].score-radio');
+            const questionNames = new Set();
+
+            allQuestions.forEach(radio => {
+                questionNames.add(radio.name);
+            });
+
+            let allAnswered = true;
+            questionNames.forEach(name => {
+                const checked = document.querySelector(`input[name="${name}"]:checked`);
+                if (!checked) {
+                    allAnswered = false;
                 }
             });
-        }
+
+            if (!allAnswered) {
+                e.preventDefault();
+                showMessage('Please answer all questions before submitting the evaluation.', 'danger');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return false;
+            }
+
+            // Disable submit button to prevent double submission
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+        });
     </script>
 }
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

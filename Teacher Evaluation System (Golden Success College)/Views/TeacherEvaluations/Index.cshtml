@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Teacher Evaluations";
     var isStudent = User.IsInRole("Student");
-    var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
+    var isAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
     Layout = "_Layoutadmin";
 }
 
@@ -11,7 +11,8 @@
     <div class="row mb-4">
         <div class="col-md-12">
             <h2><i class="bi bi-clipboard-check"></i> Teacher Evaluations</h2>
-            @if (isStudent || isAdminOrSuperAdmin)
+
+            @if (isStudent || isAdmin)
             {
                 <a asp-action="Create" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Create New Evaluation
@@ -20,10 +21,9 @@
         </div>
     </div>
 
-    <!-- Success Message -->
     @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success alert-dismissible fade show">
             <i class="bi bi-check-circle"></i> @TempData["SuccessMessage"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -42,21 +42,25 @@
                         <input type="text" class="form-control" name="filterTeacher"
                                value="@Model.FilterTeacherName" placeholder="Search teacher...">
                     </div>
+
                     <div class="col-md-3">
                         <label class="form-label">Subject</label>
                         <input type="text" class="form-control" name="filterSubject"
                                value="@Model.FilterSubjectName" placeholder="Search subject...">
                     </div>
+
                     <div class="col-md-2">
                         <label class="form-label">Date From</label>
                         <input type="date" class="form-control" name="filterDateFrom"
                                value="@Model.FilterDateFrom?.ToString("yyyy-MM-dd")">
                     </div>
+
                     <div class="col-md-2">
                         <label class="form-label">Date To</label>
                         <input type="date" class="form-control" name="filterDateTo"
                                value="@Model.FilterDateTo?.ToString("yyyy-MM-dd")">
                     </div>
+
                     <div class="col-md-2 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary me-2">
                             <i class="bi bi-funnel"></i> Filter
@@ -75,6 +79,7 @@
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0"><i class="bi bi-list-ul"></i> Evaluation Records</h5>
         </div>
+
         <div class="card-body">
             @if (Model.Evaluations.Any())
             {
@@ -82,107 +87,124 @@
                     <table class="table table-hover table-striped">
                         <thead class="table-light">
                             <tr>
-                                <th><i class="bi bi-book"></i> Subject</th>
-                                <th><i class="bi bi-person"></i> Teacher</th>
-                                <th><i class="bi bi-image"></i> Picture</th>
-                                <th><i class="bi bi-person-badge"></i> Student</th>
-                                <th><i class="bi bi-calendar"></i> Date Evaluated</th>
-                                <th><i class="bi bi-star"></i> Average Score</th>
-                                <th class="text-center"><i class="bi bi-incognito"></i> Anonymous</th>
-                                <th class="text-center"><i class="bi bi-gear"></i> Actions</th>
+                                <th>Subject</th>
+                                <th>Teacher</th>
+                                <th>Picture</th>
+                                <th>Student</th>
+                                <th>Date</th>
+                                <th>Average Score</th>
+                                <th class="text-center">Anonymous</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
+
                         <tbody>
                             @foreach (var item in Model.Evaluations)
                             {
                                 <tr>
                                     <td>@item.SubjectName</td>
+
                                     <td>@item.TeacherName</td>
+
                                     <td>
-                                        @if (!string.IsNullOrEmpty(item.TeacherPicturePath))
+                                        <img src="@Url.Content(item.TeacherPicturePath)"
+                                             class="rounded-circle"
+                                             style="width:40px;height:40px;object-fit:cover;" />
+                                    </td>
+
+                                    <!-- STUDENT COLUMN UPDATED -->
+                                    <td>
+                                        @if (item.IsAnonymous)
                                         {
-                                            <img src="@Url.Content(item.TeacherPicturePath)"
-                                                  alt="Teacher Picture"
-                                                  class="rounded-circle"
-                                                  style="width:40px;height:40px;object-fit:cover;">
+                                            if (isAdmin)
+                                            {
+                                                <!-- Admin sees real name -->
+                                                <span>@item.StudentName</span>
+                                                <i class="bi bi-incognito text-warning ms-1" title="Anonymous Enabled"></i>
+                                            }
+                                            else
+                                            {
+                                                <!-- Student sees ANONYMOUS -->
+                                                <span class="text-muted">Anonymous</span>
+                                                <i class="bi bi-incognito text-muted ms-1"></i>
+                                            }
                                         }
                                         else
                                         {
-                                            <i class="bi bi-person-circle fs-3 text-muted"></i>
+                                            <!-- Not anonymous -->
+                                            <span>@item.StudentName</span>
                                         }
-                                    </td>
-                                    <td>
-                                        @item.StudentName
-                                        @if (item.IsAnonymous && !isAdminOrSuperAdmin)
-                                        {
-                                            <i class="bi bi-incognito text-muted ms-1" title="Anonymous Evaluation"></i>
-                                        }
-                                    </td>
-                                    <td>@item.DateEvaluated.ToString("MMM dd, yyyy")</td>
-                                    <td>
-                                        <span class="badge @(item.AverageScore >= 4 ? "bg-success" :
-                                                                                                            item.AverageScore >= 3 ? "bg-primary" :
-                                                                                                            item.AverageScore >= 2 ? "bg-warning text-dark" : "bg-danger") fs-6">
+                                </td>
+
+                                <td>@item.DateEvaluated.ToString("MMM dd, yyyy")</td>
+
+                                <td>
+                                    <span class="badge
+                                                    @(item.AverageScore >= 4 ? "bg-success" :
+                                                                                          item.AverageScore >= 3 ? "bg-primary" :
+                                                                                          item.AverageScore >= 2 ? "bg-warning text-dark" :
+                                                                                          "bg-danger") fs-6">
                                     @item.AverageScore.ToString("F2") / 5.00
                                 </span>
                             </td>
-                            <td class="text-center">
+
+                                    <!-- ANONYMOUS COLUMN -->
+                                    <td class="text-center">
+                                        <!-- Anonymous icon beside the score -->
                                 @if (item.IsAnonymous)
                                         {
-                                            <i class="bi bi-check-circle text-success fs-5" title="Anonymous"></i>
+                                            <i class="bi bi-check-circle text-success fs-5 ms-2" title="Anonymous"></i>
                                         }
                                         else
                                         {
-                                            <i class="bi bi-x-circle text-muted fs-5" title="Not Anonymous"></i>
+                                            <i class="bi bi-x-circle text-muted fs-5 ms-2" title="Not Anonymous"></i>
                                         }
                                     </td>
+
                                     <td class="text-center">
-                                        <div class="btn-group" role="group">
-                                            @if (isStudent || isAdminOrSuperAdmin)
-                                            {
-                                                <a asp-action="Details" asp-route-id="@item.EvaluationId"
-                                                   class="btn btn-sm btn-info text-white"
-                                                   title="View Details">
-                                                    <i class="bi bi-eye"></i> View
-                                                </a>
-                                            }
-                                            @if (isAdminOrSuperAdmin)
+                                        <div class="btn-group">
+                                            <a asp-action="Details" asp-route-id="@item.EvaluationId"
+                                               class="btn btn-sm btn-info text-white me-2">
+                                                <i class="bi bi-eye"></i> View
+                                            </a>
+
+                                            @if (isAdmin)
                                             {
                                                 <a asp-action="Delete" asp-route-id="@item.EvaluationId"
-                                                   class="btn btn-sm btn-danger"
-                                                   title="Delete">
+                                                   class="btn btn-sm btn-danger">
                                                     <i class="bi bi-trash"></i> Delete
                                                 </a>
                                             }
                                         </div>
+
                                     </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
-                <div class="mt-3">
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>Total Evaluations:</strong> @Model.Evaluations.Count
-                        @if (Model.Evaluations.Any())
-                        {
-                            <span class="ms-3">
-                                <strong>Overall Average:</strong>
-                                <span class="badge bg-primary">@Model.Evaluations.Average(e => e.AverageScore).ToString("F2")</span>
+
+                <div class="mt-3 alert alert-info">
+                    <strong>Total Evaluations:</strong> @Model.Evaluations.Count
+
+                    @if (Model.Evaluations.Any())
+                    {
+                        <span class="ms-3">
+                            <strong>Overall Average:</strong>
+                            <span class="badge bg-primary">
+                                @Model.Evaluations.Average(e => e.AverageScore).ToString("F2")
                             </span>
-                        }
-                    </div>
+                        </span>
+                    }
                 </div>
             }
             else
             {
-                <div class="alert alert-info mb-0">
-                    <h5 class="alert-heading"><i class="bi bi-info-circle"></i> No Evaluations Found</h5>
-                    <hr>
-                    <p class="mb-0">
+                <div class="alert alert-info">
+                    <h5><i class="bi bi-info-circle"></i> No Evaluations Found</h5>
+                    <p>
                         No evaluations match your criteria.
-                        @if (isStudent || isAdminOrSuperAdmin)
+                        @if (isStudent || isAdmin)
                         {
                             <a asp-action="Create" class="alert-link">Create your first evaluation</a>
                         }
@@ -193,17 +215,12 @@
     </div>
 </div>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
 @section Scripts {
     <script>
-        // Auto-dismiss success message after 5 seconds
-        setTimeout(function() {
+        setTimeout(function () {
             const alert = document.querySelector('.alert-success');
-            if (alert) {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            }
+            if (alert) new bootstrap.Alert(alert).close();
         }, 5000);
     </script>
 }
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

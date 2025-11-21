@@ -2,7 +2,7 @@
 
 @{
     ViewData["Title"] = "Evaluation Details";
-    var isAdminOrSuperAdmin = User.IsInRole("SuperAdmin") || User.IsInRole("Admin");
+    var isAdminOrSuperAdmin = User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
     Layout = "_Layoutadmin";
 }
 

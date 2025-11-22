@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
+using Teacher_Evaluation_System__Golden_Success_College_.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,10 +15,11 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
-builder.Services.AddHttpContextAccessor();
 // Register EmailService
 builder.Services.AddScoped<EmailService>();
-
+// ⭐ CRITICAL: Register Activity Log Service (REQUIRED for Activity Logging)
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 // Session
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>

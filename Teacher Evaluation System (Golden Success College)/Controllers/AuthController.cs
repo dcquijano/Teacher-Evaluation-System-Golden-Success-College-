@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Helper;
+using Teacher_Evaluation_System__Golden_Success_College_.Services;
 using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
@@ -13,11 +14,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
         private readonly EmailService _emailService;
+        private readonly IActivityLogService _activityLogService;
 
-        public AuthController(Teacher_Evaluation_System__Golden_Success_College_Context context, EmailService emailService)
+        public AuthController(
+            Teacher_Evaluation_System__Golden_Success_College_Context context,
+            EmailService emailService,
+            IActivityLogService activityLogService)
         {
             _context = context;
             _emailService = emailService;
+            _activityLogService = activityLogService;
         }
 
         // GET: Login Page
@@ -26,7 +32,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View();
         }
 
-       // POST: Login
+        // POST: Login
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(string email, string password)
@@ -44,7 +50,24 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             if (user != null && !string.IsNullOrEmpty(user.Password) && PasswordHelper.VerifyPassword(password, user.Password))
             {
+                // Sign in user first
                 await SignInUser(user.UserId, user.FullName!, user.Role!.Name);
+
+                // Log the login activity AFTER sign in (so User claims are available)
+                var ipAddress = GetClientIpAddress();
+                var userAgent = Request.Headers["User-Agent"].ToString();
+
+                // Create a ClaimsPrincipal with the user info for logging
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                    new Claim(ClaimTypes.Name, user.FullName ?? "Unknown"),
+                    new Claim(ClaimTypes.Role, user.Role?.Name ?? "Unknown")
+                };
+                var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims));
+
+                await _activityLogService.LogLoginAsync(userPrincipal, ipAddress, userAgent);
+
                 TempData["SuccessMessage"] = $"Welcome back, {user.FullName}!";
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -56,7 +79,24 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             if (student != null && PasswordHelper.VerifyPassword(password, student.Password))
             {
+                // Sign in student first
                 await SignInUser(student.StudentId, student.FullName!, student.Role!.Name);
+
+                // Log the login activity AFTER sign in
+                var ipAddress = GetClientIpAddress();
+                var userAgent = Request.Headers["User-Agent"].ToString();
+
+                // Create a ClaimsPrincipal with the student info for logging
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, student.StudentId.ToString()),
+                    new Claim(ClaimTypes.Name, student.FullName ?? "Unknown"),
+                    new Claim(ClaimTypes.Role, student.Role?.Name ?? "Student")
+                };
+                var studentPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims));
+
+                await _activityLogService.LogLoginAsync(studentPrincipal, ipAddress, userAgent);
+
                 TempData["SuccessMessage"] = $"Welcome back, {student.FullName}!";
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -92,22 +132,22 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         // Logout
         public async Task<IActionResult> Logout()
         {
+            // Log the logout activity BEFORE signing out (while User claims are still available)
+            var ipAddress = GetClientIpAddress();
+            await _activityLogService.LogLogoutAsync(User, ipAddress);
+
             await HttpContext.SignOutAsync();
             HttpContext.Session.Clear();
             return RedirectToAction("Login");
         }
 
-
-      
         // Access Denied Page
         public IActionResult AccessDenied()
         {
             return View();
         }
 
-
-
-         // GET: /Auth/ForgotPassword
+        // GET: /Auth/ForgotPassword
         [HttpGet]
         public IActionResult ForgotPassword()
         {
@@ -131,7 +171,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return View(model);
             }
 
-            // Generate a reset token (store in DB in production)
+            // Generate a reset token
             var token = Guid.NewGuid().ToString();
 
             // Build reset link
@@ -175,7 +215,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     </table>
                 </body>
                 </html>";
-
 
             await _emailService.SendEmailAsync(model.Email, subject, body);
 
@@ -256,8 +295,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     </body>
                     </html>";
 
-
-            // Determine recipient
             var recipientEmail = user?.Email ?? student?.Email;
             if (!string.IsNullOrEmpty(recipientEmail))
             {
@@ -268,6 +305,17 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return RedirectToAction("Login", "Auth");
         }
 
+        private string GetClientIpAddress()
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
+            // Check for forwarded IP (when behind proxy/load balancer)
+            if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
+            {
+                ipAddress = HttpContext.Request.Headers["X-Forwarded-For"].ToString().Split(',')[0].Trim();
+            }
+
+            return ipAddress ?? "Unknown";
+        }
     }
 }

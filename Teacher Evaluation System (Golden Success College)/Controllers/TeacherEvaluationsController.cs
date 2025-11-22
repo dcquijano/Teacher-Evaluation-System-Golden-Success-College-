@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
+using Teacher_Evaluation_System__Golden_Success_College_.Services;
 using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
@@ -13,82 +14,17 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
     public class TeacherEvaluationsController : Controller
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
+        private readonly IActivityLogService _activityLogService;
 
-        public TeacherEvaluationsController(Teacher_Evaluation_System__Golden_Success_College_Context context)
+        public TeacherEvaluationsController(
+            Teacher_Evaluation_System__Golden_Success_College_Context context,
+            IActivityLogService activityLogService)
         {
             _context = context;
+            _activityLogService = activityLogService;
         }
 
-        //// GET: TeacherEvaluations/Index - Shows evaluation history
-        //public async Task<IActionResult> Index(
-        //    string filterTeacher,
-        //    string filterSubject,
-        //    DateTime? filterDateFrom,
-        //    DateTime? filterDateTo)
-        //{
-        //    var studentId = GetCurrentStudentId();
-        //    var isAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
-
-        //    IQueryable<Evaluation> query = _context.Evaluation
-        //        .Include(e => e.Teacher)
-        //        .Include(e => e.Subject)
-        //        .Include(e => e.Student)
-        //        .Include(e => e.Scores)
-        //            .ThenInclude(s => s.Question)
-        //                .ThenInclude(q => q.Criteria);
-
-        //    // If student – restrict to his own evaluations
-        //    if (!isAdmin)
-        //    {
-        //        query = query.Where(e => e.StudentId == studentId);
-        //    }
-
-        //    // Filters
-        //    if (!string.IsNullOrWhiteSpace(filterTeacher))
-        //        query = query.Where(e => e.Teacher.FullName.Contains(filterTeacher));
-
-        //    if (!string.IsNullOrWhiteSpace(filterSubject))
-        //        query = query.Where(e =>
-        //            e.Subject.SubjectName.Contains(filterSubject) ||
-        //            e.Subject.SubjectCode.Contains(filterSubject));
-
-        //    if (filterDateFrom.HasValue)
-        //        query = query.Where(e => e.DateEvaluated >= filterDateFrom.Value.Date);
-
-        //    if (filterDateTo.HasValue)
-        //        query = query.Where(e => e.DateEvaluated <= filterDateTo.Value.Date.AddDays(1).AddTicks(-1));
-
-        //    var evaluations = await query
-        //        .OrderByDescending(e => e.DateEvaluated)
-        //        .ToListAsync();
-
-        //    // Build ViewModel
-        //    var viewModel = new EvaluationListViewModel
-        //    {
-        //        FilterTeacherName = filterTeacher,
-        //        FilterSubjectName = filterSubject,
-        //        FilterDateFrom = filterDateFrom,
-        //        FilterDateTo = filterDateTo,
-        //        Evaluations = evaluations.Select(e => new EvaluationListItemViewModel
-        //        {
-        //            EvaluationId = e.EvaluationId,
-        //            SubjectName = $"{e.Subject?.SubjectCode} - {e.Subject?.SubjectName}",
-        //            TeacherName = e.Teacher?.FullName,
-        //            TeacherPicturePath = string.IsNullOrEmpty(e.Teacher?.PicturePath)
-        //                                 ? "/images/default-teacher.png"
-        //                                 : e.Teacher.PicturePath,
-        //            StudentName = e.IsAnonymous ? "Anonymous" : e.Student?.FullName,
-        //            IsAnonymous = e.IsAnonymous,
-        //            DateEvaluated = e.DateEvaluated,
-        //            Comments = e.Comments,
-        //            AverageScore = e.AverageScore
-        //        }).ToList()
-        //    };
-
-        //    return View(viewModel);
-        //}
-
-        // GET: TeacherEvaluations/Index - Shows evaluation history
+        // GET: TeacherEvaluations/Index
         [Authorize(Roles = "Admin,Super Admin,Student")]
         public async Task<IActionResult> Index()
         {
@@ -126,15 +62,13 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View(evaluations);
         }
 
-
-        // GET: TeacherEvaluations/Create - Shows evaluation form
+        // GET: TeacherEvaluations/Create
         [Authorize(Roles = "Admin,Super Admin,Student")]
         public async Task<IActionResult> Create()
         {
             var studentId = GetCurrentStudentId();
             var student = await _context.Student.FindAsync(studentId);
 
-            // Get all available (not yet evaluated) teacher-subject pairs
             var availablePairs = await GetAvailableTeacherSubjectPairs(studentId);
 
             if (!availablePairs.Any())
@@ -155,7 +89,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return View(emptyViewModel);
             }
 
-            // Get distinct teachers from available pairs
             var teachers = availablePairs
                 .Select(x => x.Teacher)
                 .DistinctBy(t => t.TeacherId)
@@ -167,7 +100,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 })
                 .ToList();
 
-            // Load all questions grouped by criteria
             var criteriaGroups = await _context.Question
                 .Include(q => q.Criteria)
                 .OrderBy(q => q.CriteriaId)
@@ -202,12 +134,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View(viewModel);
         }
 
-        // GET: TeacherEvaluations/GetEnrolledSubjects - AJAX endpoint for cascading dropdown
+        // GET: TeacherEvaluations/GetEnrolledSubjects
         [HttpGet]
         public async Task<JsonResult> GetEnrolledSubjects(int teacherId, int? studentId = null)
         {
             var currentStudentId = studentId ?? GetCurrentStudentId();
-
             var availablePairs = await GetAvailableTeacherSubjectPairs(currentStudentId);
 
             var subjects = availablePairs
@@ -221,11 +152,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return Json(subjects);
         }
 
-        // GET: TeacherEvaluations/GetEnrolledStudents - AJAX endpoint for admin
+        // GET: TeacherEvaluations/GetEnrolledStudents
         [HttpGet]
         public async Task<JsonResult> GetEnrolledStudents(int teacherId, int subjectId)
         {
-            // Get all students enrolled in this teacher-subject combination
             var enrolledStudents = await _context.Enrollment
                 .Include(e => e.Student)
                 .Where(e => e.TeacherId == teacherId && e.SubjectId == subjectId)
@@ -233,13 +163,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .Distinct()
                 .ToListAsync();
 
-            // Get students who have already evaluated this combination
             var evaluatedStudents = await _context.Evaluation
                 .Where(e => e.TeacherId == teacherId && e.SubjectId == subjectId)
                 .Select(e => e.StudentId)
                 .ToListAsync();
 
-            // Filter out students who already evaluated
             var availableStudents = enrolledStudents
                 .Where(s => !evaluatedStudents.Contains(s.StudentId))
                 .Select(s => new {
@@ -251,7 +179,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return Json(availableStudents);
         }
 
-        // POST: TeacherEvaluations/Create - Submit evaluation
+        // POST: TeacherEvaluations/Create
         [Authorize(Roles = "Admin,Super Admin,Student")]
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -264,8 +192,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             }
 
             var studentId = GetCurrentStudentId();
+            var ipAddress = GetClientIpAddress();
 
-            // Verify student is enrolled in this teacher-subject combination
+            // Log evaluation started
+            await _activityLogService.LogEvaluationStartedAsync(
+                studentId,
+                model.TeacherId,
+                model.SubjectId,
+                ipAddress
+            );
+
             var isEnrolled = await _context.Enrollment
                 .AnyAsync(e => e.StudentId == studentId
                     && e.TeacherId == model.TeacherId
@@ -277,7 +213,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return RedirectToAction(nameof(Create));
             }
 
-            // Check if already evaluated
             var alreadyEvaluated = await _context.Evaluation
                 .AnyAsync(e => e.StudentId == studentId
                     && e.TeacherId == model.TeacherId
@@ -289,7 +224,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return RedirectToAction(nameof(Create));
             }
 
-            // Create evaluation
             var evaluation = new Evaluation
             {
                 StudentId = studentId,
@@ -308,6 +242,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             _context.Evaluation.Add(evaluation);
             await _context.SaveChangesAsync();
 
+            // Log evaluation completed
+            await _activityLogService.LogEvaluationCompletedAsync(
+                studentId,
+                evaluation.EvaluationId,
+                model.TeacherId,
+                model.SubjectId,
+                ipAddress
+            );
+
             TempData["SuccessMessage"] = "Evaluation submitted successfully! Thank you for your feedback.";
             return RedirectToAction(nameof(Index));
         }
@@ -321,7 +264,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             var isAdmin = User.IsInRole("Admin") || User.IsInRole("Super Admin");
 
-            // Load evaluation with full navigation
             var evaluation = await _context.Evaluation
                 .Include(e => e.Teacher)
                 .Include(e => e.Subject)
@@ -334,27 +276,22 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (evaluation == null)
                 return NotFound();
 
-            // ---- SECURITY FIX ----
             if (!isAdmin)
             {
-                // Students must match the evaluation's student
                 var currentStudentId = GetCurrentStudentId();
 
                 if (currentStudentId == null)
-                    return Unauthorized();  // not logged in as student
+                    return Unauthorized();
 
                 if (evaluation.StudentId != currentStudentId)
-                    return Unauthorized();  // accessing someone else's evaluation
+                    return Unauthorized();
             }
-            // ------------------------
 
-            // Hide student name if anonymous
             string studentNameToShow =
                 evaluation.IsAnonymous && !isAdmin
                     ? "Anonymous"
                     : evaluation.Student?.FullName;
 
-            // Build ViewModel
             var viewModel = new EvaluationResultViewModel
             {
                 EvaluationId = evaluation.EvaluationId,
@@ -384,8 +321,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View(viewModel);
         }
 
-
-
         // GET: TeacherEvaluations/Delete/5
         [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> Delete(int? id)
@@ -406,7 +341,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return NotFound();
             }
 
-            // Build simple view model for delete confirmation
             var viewModel = new EvaluationListItemViewModel
             {
                 EvaluationId = evaluation.EvaluationId,
@@ -433,10 +367,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             if (evaluation != null)
             {
-                // Remove all scores first (cascade delete might handle this, but being explicit)
                 _context.Score.RemoveRange(evaluation.Scores);
-
-                // Remove the evaluation
                 _context.Evaluation.Remove(evaluation);
                 await _context.SaveChangesAsync();
 
@@ -446,7 +377,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // Helper: Get current logged-in student ID
         private int GetCurrentStudentId()
         {
             var studentIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -457,23 +387,31 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return int.Parse(studentIdClaim);
         }
 
-        // Helper: Get available teacher-subject pairs (not yet evaluated)
+        private string GetClientIpAddress()
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
+            {
+                ipAddress = HttpContext.Request.Headers["X-Forwarded-For"].ToString().Split(',')[0].Trim();
+            }
+
+            return ipAddress ?? "Unknown";
+        }
+
         private async Task<List<Enrollment>> GetAvailableTeacherSubjectPairs(int studentId)
         {
-            // Get all enrollments for this student
             var enrollments = await _context.Enrollment
                 .Include(e => e.Teacher)
                 .Include(e => e.Subject)
                 .Where(e => e.StudentId == studentId && e.Teacher.IsActive)
                 .ToListAsync();
 
-            // Get already evaluated pairs
             var evaluatedPairs = await _context.Evaluation
                 .Where(e => e.StudentId == studentId)
                 .Select(e => new { e.TeacherId, e.SubjectId })
                 .ToListAsync();
 
-            // Filter out evaluated pairs
             var available = enrollments
                 .Where(enrollment => !evaluatedPairs.Any(ep =>
                     ep.TeacherId == enrollment.TeacherId &&

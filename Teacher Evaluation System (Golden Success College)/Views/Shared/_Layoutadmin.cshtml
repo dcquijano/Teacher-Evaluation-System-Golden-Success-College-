@@ -49,9 +49,23 @@
                     <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
                     <li><a asp-controller="Logs" asp-action="Index"><i class='bx bx-list-ul'></i><span class="links_name">Activity Logs</span></a></li>
                 }
+                @if (isAdmin)
+                {
+                    <li><a asp-controller="Users" asp-action="Index"><i class='bx bx-user'></i><span class="links_name">Users</span></a></li>
+                    <li><a asp-controller="Levels" asp-action="Index"><i class='bx bx-grid'></i><span class="links_name">Levels</span></a></li>
+                    <li><a asp-controller="Sections" asp-action="Index"><i class='bx bx-grid-alt'></i><span class="links_name">Sections</span></a></li>
+                    <li><a asp-controller="Enrollments" asp-action="Index"><i class='bx bx-list-plus'></i><span class="links_name">Enrollments</span></a></li>
+                    <li><a asp-controller="Students" asp-action="Index"><i class='bx bx-user-plus'></i><span class="links_name">Students</span></a></li>
+                    <li><a asp-controller="Subjects" asp-action="Index"><i class='bx bx-book'></i><span class="links_name">Subjects</span></a></li>
+                    <li><a asp-controller="Teachers" asp-action="Index"><i class='bx bx-chalkboard'></i><span class="links_name">Teachers</span></a></li>
+                    <li><a asp-controller="Criteria" asp-action="Index"><i class='bx bx-task'></i><span class="links_name">Criteria</span></a></li>
+                    <li><a asp-controller="Questions" asp-action="Index"><i class='bx bx-question-mark'></i><span class="links_name">Questions</span></a></li>
+                    <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
+                    <li><a asp-controller="Logs" asp-action="Index"><i class='bx bx-list-ul'></i><span class="links_name">Activity Logs</span></a></li>
+                }
                 @if (isStudent)
                 {
-                    <li><a asp-controller="Dashboard" asp-action="Index"><i class='bx bx-home'></i><span class="links_name">Dashboard</span></a></li>
+                  
                     <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
                 }
             </ul>
@@ -66,13 +80,43 @@
                 </div>
                 <form asp-controller="Auth" asp-action="Logout" method="post" class="m-0">
                     @Html.AntiForgeryToken()
-                    <button type="submit" class="btn text-white border-0 bg-transparent p-0 logout-link">
+                    <button type="button" class="btn text-white border-0 bg-transparent p-0" data-bs-toggle="modal" data-bs-target="#logoutModal">
                         <i class='bx bx-log-out' id="log_out"></i>
                     </button>
                 </form>
             </div>
         </div>
     }
+
+    <!-- Logout Confirmation Modal -->
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="logoutLabel">Confirm Logout</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body text-center">
+                    <h5 class="fw-bold mb-3">Are you sure you want to log out?</h5>
+                    <p class="text-muted">You will be returned to the login page.</p>
+                </div>
+
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+
+                    <form asp-controller="Auth" asp-action="Logout" method="post" class="m-0">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger px-4">Logout</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
     <div class="home-section" id="main">
         <main class="container pt-3">
             @RenderBody()

@@ -28,6 +28,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
 
         public DbSet<Teacher_Evaluation_System__Golden_Success_College_.Models.Enrollment> Enrollment { get; set; } = default!;
 
+        public DbSet<Teacher_Evaluation_System__Golden_Success_College_.Models.ActivityLog> ActivityLog { get; set; } = default!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -82,6 +84,25 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
                .HasForeignKey(s => s.SectionId)
                .OnDelete(DeleteBehavior.Restrict);
 
+
+           // Existing relationships
+            modelBuilder.Entity<Evaluation>()
+                .HasMany(e => e.Scores)
+                .WithOne(s => s.Evaluation)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add indexes for ActivityLog for better performance
+            modelBuilder.Entity<ActivityLog>()
+                .HasIndex(a => a.Timestamp);
+
+            modelBuilder.Entity<ActivityLog>()
+                .HasIndex(a => a.ActivityType);
+
+            modelBuilder.Entity<ActivityLog>()
+                .HasIndex(a => a.StudentId);
+
+            modelBuilder.Entity<ActivityLog>()
+                .HasIndex(a => a.UserId);
 
         }
 

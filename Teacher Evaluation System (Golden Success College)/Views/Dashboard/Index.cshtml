@@ -4,8 +4,10 @@
     ViewData["Title"] = "Dashboard";
 }
 
+<!-- Toast Notifications -->
 <div aria-live="polite" aria-atomic="true" class="position-relative">
     <div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer">
+
         @if (TempData["SuccessMessage"] != null)
         {
             <div class="toast align-items-center text-bg-success border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
@@ -29,11 +31,12 @@
                 </div>
             </div>
         }
+
     </div>
 </div>
 
 @if (User.IsInRole("Super Admin"))
-    {
+{
     <br />
     <h2 class="mb-4 text-center">Super Admin Dashboard</h2>
     <div class="row">
@@ -60,7 +63,6 @@
 
 @if (User.IsInRole("Admin"))
 {
-
     <br />
     <h2 class="mb-4 text-center">Admin Dashboard</h2>
     <div class="row">
@@ -120,26 +122,52 @@ else if (User.IsInRole("Student"))
             }
         }
     </div>
-
-    <style>
-        .teacher-img {
-            width: 150px;
-            height: 150px;
-            object-fit: cover;
-            display: block;
-            margin: auto;
-        }
-
-        .card h5 {
-            margin-top: 10px;
-            margin-bottom: 5px;
-        }
-
-        .toast {
-            min-width: 250px;
-            max-width: 350px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            font-size: 14px;
-        }
-    </style>
 }
+
+<!-- Styles -->
+<style>
+    /* FIX TOAST COLORS – prevents black background */
+    .toast.text-bg-success {
+        background-color: #28a745 !important;
+        color: #fff !important;
+    }
+
+    .toast.text-bg-danger {
+        background-color: #dc3545 !important;
+        color: #fff !important;
+    }
+
+    .toast .btn-close-white {
+        filter: invert(1) !important;
+    }
+
+    .toast {
+        min-width: 250px;
+        max-width: 350px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        font-size: 14px;
+    }
+
+    .teacher-img {
+        width: 150px;
+        height: 150px;
+        object-fit: cover;
+        display: block;
+        margin: auto;
+    }
+
+    .card h5 {
+        margin-top: 10px;
+        margin-bottom: 5px;
+    }
+</style>
+
+<!-- Auto-hide Toasts -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const toastElList = [].slice.call(document.querySelectorAll('.toast'));
+        toastElList.map(function (toastEl) {
+            new bootstrap.Toast(toastEl, { delay: 3000 }).show();
+        });
+    });
+</script>

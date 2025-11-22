@@ -50,7 +50,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
         [HttpGet("ByQuestion/{questionId}")]
         public async Task<IActionResult> GetQuestionsByQuestion(int questionId)
         {
-            var question = await _context.Question.FindAsync(questionId);
+            var question = await _context.Question
+                .Include(q => q.Criteria)
+                .FirstOrDefaultAsync(q => q.QuestionId == questionId);
+
             if (question == null)
                 return NotFound(new { success = false, message = "Question not found" });
 
@@ -69,6 +72,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
 
             return Ok(new { success = true, data });
         }
+
 
 
         // GET: api/QuestionsApi/ByCriteria/5

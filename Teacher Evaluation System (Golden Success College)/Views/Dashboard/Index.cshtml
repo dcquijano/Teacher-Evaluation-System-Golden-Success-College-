@@ -35,6 +35,14 @@
     </div>
 </div>
 
+<!-- ✅ SCHOOL LOGO ADDED HERE -->
+<div class="text-center mb-4">
+    <img src="~/images/logo/logo.png"
+         alt="School Logo"
+         class="school-logo-img">
+</div>
+
+
 @if (User.IsInRole("Super Admin"))
 {
     <br />
@@ -160,6 +168,18 @@ else if (User.IsInRole("Student"))
         margin-top: 10px;
         margin-bottom: 5px;
     }
+
+    .school-logo-img {
+        width: 220px;
+        height: auto;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        mix-blend-mode: multiply; /* enhances transparency on white bg */
+        -webkit-filter: drop-shadow(0 0 0 transparent);
+        filter: drop-shadow(0 0 0 transparent);
+    }
+
 </style>
 
 <!-- Auto-hide Toasts -->

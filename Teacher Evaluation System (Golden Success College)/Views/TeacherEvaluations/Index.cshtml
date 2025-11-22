@@ -19,6 +19,7 @@
         }
     </div>
 
+
     <!-- Loading overlay -->
     <div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:1050; text-align:center;">
         <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
@@ -96,6 +97,33 @@
             }
         </tbody>
     </table>
+</div>
+
+<!-- Create/Quick View Modal (Optional - for future use) -->
+<div class="modal fade" id="evaluationModal" tabindex="-1" aria-labelledby="evaluationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="evaluationModalLabel">Evaluation Quick View</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">
+                    <i class="bi bi-info-circle"></i>
+                    For creating evaluations, please use the full form page.
+                </p>
+                <div id="evaluationModalContent">
+                    <!-- Content loaded via AJAX if needed -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="goToFullForm" class="btn btn-primary">
+                    <i class="bi bi-clipboard-check"></i> Go to Full Form
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Delete Confirmation Modal -->

@@ -89,6 +89,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         //}
 
         // GET: TeacherEvaluations/Index - Shows evaluation history
+        [Authorize(Roles = "Admin,Super Admin,Student")]
         public async Task<IActionResult> Index()
         {
             var studentId = GetCurrentStudentId();
@@ -127,6 +128,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
 
         // GET: TeacherEvaluations/Create - Shows evaluation form
+        [Authorize(Roles = "Admin,Super Admin,Student")]
         public async Task<IActionResult> Create()
         {
             var studentId = GetCurrentStudentId();
@@ -221,7 +223,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
         // GET: TeacherEvaluations/GetEnrolledStudents - AJAX endpoint for admin
         [HttpGet]
-        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<JsonResult> GetEnrolledStudents(int teacherId, int subjectId)
         {
             // Get all students enrolled in this teacher-subject combination
@@ -251,6 +252,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // POST: TeacherEvaluations/Create - Submit evaluation
+        [Authorize(Roles = "Admin,Super Admin,Student")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(SubmitEvaluationViewModel model)
@@ -311,6 +313,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: TeacherEvaluations/Details/5
+        [Authorize(Roles = "Admin,Super Admin,Student")]
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)

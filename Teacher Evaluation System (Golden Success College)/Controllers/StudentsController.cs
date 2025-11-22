@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -11,6 +12,7 @@ using Teacher_Evaluation_System__Golden_Success_College_.Models;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 {
+    [Authorize(Roles = "Admin,Super Admin")]
     public class StudentsController : Controller
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;

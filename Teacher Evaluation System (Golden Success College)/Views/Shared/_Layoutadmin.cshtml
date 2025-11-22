@@ -1,102 +1,112 @@
-﻿@using Microsoft.AspNetCore.Http
+﻿@using System.Security.Claims
 @{
+    Layout = null;
+    var fullname = User.FindFirstValue(ClaimTypes.Name) ?? "Guest";
+    var role = User.FindFirstValue(ClaimTypes.Role) ?? "None";
+    var isActive = User.FindFirst("IsActive")?.Value == "true";
+
     bool isAdmin = User.IsInRole("Admin");
     bool isSuperAdmin = User.IsInRole("Super Admin");
     bool isStudent = User.IsInRole("Student");
 }
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] Teacher Evaluation System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - Teacher Evaluation System</title>
+    <link rel="stylesheet" href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Teacher_Evaluation_System__Golden_Success_College_.styles.css" asp-append-version="true" />
-    <!-- Head section -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet" />
-
-
 
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Dashboard" asp-action="Index">Teacher Evaluation System</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-            
-
-
-                        <ul class="navbar-nav flex-grow-1">
-
-                            @* Admin / Super Admin *@
-                            @if (isAdmin || isSuperAdmin)
-                            {
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Roles" asp-action="Index">Role</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Users" asp-action="Index">User</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Levels" asp-action="Index">Level</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Sections" asp-action="Index">Section</a></li>
-                            <li class="nav-item"><a class="nav-link text-dark" asp-controller="Enrollments" asp-action="Index">Enrollment</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Students" asp-action="Index">Student</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Subjects" asp-action="Index">Subject</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Teachers" asp-action="Index">Teacher</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Criteria" asp-action="Index">Criteria</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Questions" asp-action="Index">Questions</a></li>
-                                @* <li class="nav-item"><a class="nav-link text-dark" asp-controller="Evaluations" asp-action="Index">Evaluations</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Scores" asp-action="Index">Scores</a></li> *@
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="TeacherEvaluations" asp-action="Index">Teacher Evaluations</a></li>
-
-                                <span class="navbar-text text-muted ms-auto">
-                                    @User.Identity?.Name  Role: <strong>@(isAdmin ? "Admin" : "Super Admin")</strong>
-                                </span>
-
-                                <a class="btn btn-outline-danger" asp-controller="Auth" asp-action="Logout">Logout</a>
-                            }
-
-                            @* Student *@
-                            @if (isStudent)
-                            {
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="Dashboard" asp-action="Index">Dashboard</a></li>
-                                <li class="nav-item"><a class="nav-link text-dark" asp-controller="TeacherEvaluations" asp-action="Index">Teacher Evaluations</a></li>
-
-                                <span class="navbar-text text-muted ms-auto">
-                                    @User.Identity?.Name  Role: <strong>Student</strong>
-                                </span>
-
-                                <a class="btn btn-sm btn-danger" asp-controller="Auth" asp-action="Logout">Logout</a>
-                            }
-
-                        </ul>
-
-                   
-                 
-               
-                </div>
-              
+    <nav class="navbar navbar-light bg-light">
+        <a class="navbar-brand" href="#"><img src="~/images/logo.svg" width="30" height="30" alt="Logo"></a>
+    </nav>
+    @if (User.Identity?.IsAuthenticated ?? false)
+    {
+        <div class="sidebar" id="sidebar">
+            <div class="logo-details">
+                <div class="logo_name">Teacher Evaluation System</div>
+                <i class='bx bx-menu' id="btn"></i>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+            <ul class="nav-list">
+                <li><a asp-controller="Dashboard" asp-action="Index"><i class='bx bx-home'></i><span class="links_name">Dashboard</span></a></li>
+                @if (isSuperAdmin)
+                {
+                    <li><a asp-controller="Users" asp-action="Index"><i class='bx bx-user'></i><span class="links_name">Users</span></a></li>
+                    <li><a asp-controller="Roles" asp-action="Index"><i class='bx bx-shield-quarter'></i><span class="links_name">Roles</span></a></li>
+                    <li><a asp-controller="Levels" asp-action="Index"><i class='bx bx-grid'></i><span class="links_name">Levels</span></a></li>
+                    <li><a asp-controller="Sections" asp-action="Index"><i class='bx bx-grid-alt'></i><span class="links_name">Sections</span></a></li>
+                    <li><a asp-controller="Enrollments" asp-action="Index"><i class='bx bx-list-plus'></i><span class="links_name">Enrollments</span></a></li>
+                    <li><a asp-controller="Students" asp-action="Index"><i class='bx bx-user-plus'></i><span class="links_name">Students</span></a></li>
+                    <li><a asp-controller="Subjects" asp-action="Index"><i class='bx bx-book'></i><span class="links_name">Subjects</span></a></li>
+                    <li><a asp-controller="Teachers" asp-action="Index"><i class='bx bx-chalkboard'></i><span class="links_name">Teachers</span></a></li>
+                    <li><a asp-controller="Criteria" asp-action="Index"><i class='bx bx-task'></i><span class="links_name">Criteria</span></a></li>
+                    <li><a asp-controller="Questions" asp-action="Index"><i class='bx bx-question-mark'></i><span class="links_name">Questions</span></a></li>
+                    <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
+                    <li><a asp-controller="Logs" asp-action="Index"><i class='bx bx-list-ul'></i><span class="links_name">Activity Logs</span></a></li>
+                }
+                @if (isStudent)
+                {
+                    <li><a asp-controller="Dashboard" asp-action="Index"><i class='bx bx-home'></i><span class="links_name">Dashboard</span></a></li>
+                    <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
+                }
+            </ul>
+            <!-- Profile section outside nav-list -->
+            <div class="profile">
+                <div class="profile-details">
+                    <img src="/background/images.png" alt="profileImg">
+                    <div class="name_job">
+                        <div class="name">@fullname</div>
+                        <div class="job">@role</div>
+                    </div>
+                </div>
+                <form asp-controller="Auth" asp-action="Logout" method="post" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn text-white border-0 bg-transparent p-0 logout-link">
+                        <i class='bx bx-log-out' id="log_out"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    }
+    <div class="home-section" id="main">
+        <main class="container pt-3">
             @RenderBody()
         </main>
     </div>
-
-   @*  <footer class="border-top footer text-muted">
+    <footer class="footer text-center text-muted mt-auto py-3 bg-light">
         <div class="container">
-            &copy; 2025 - Teacher Evaluation System (Golden Success College)  - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            &copy; 2025 - Teacher Evaluation System - Golden Success College
         </div>
-    </footer> *@
+    </footer>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const sidebar = document.getElementById("sidebar");
+            const toggleBtn = document.getElementById("btn");
+
+            toggleBtn?.addEventListener("click", () => {
+                sidebar.classList.toggle("open");
+            });
+
+            // Nav links hover effect
+            const navLinks = document.querySelectorAll(".nav-list li a");
+            navLinks.forEach(link => {
+                link.addEventListener("mouseenter", () => {
+                    link.style.transform = "translateX(5px)";
+                });
+                link.addEventListener("mouseleave", () => {
+                    link.style.transform = "translateX(0)";
+                });
+            });
+        });
+    </script>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
-    <!-- Scripts section, before closing body -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     @await RenderSectionAsync("Scripts", required: false)

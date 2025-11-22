@@ -1,17 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 {
+    [Authorize(Roles = "Admin,Super Admin")]
     public class SubjectsController : Controller
     {
+
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
 
         public SubjectsController(Teacher_Evaluation_System__Golden_Success_College_Context context)

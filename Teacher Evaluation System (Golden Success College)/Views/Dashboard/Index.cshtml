@@ -1,16 +1,41 @@
-﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.Models.Teacher>?
-
+﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.ViewModels.TeacherWithSubjectViewModel>
 @{
     Layout = "_Layoutadmin";
-
-    string role = User.FindFirst("RoleName")?.Value ?? "";
+    ViewData["Title"] = "Dashboard";
 }
 
-@if (role == "Admin" || role == "Super Admin")
-{
-    <!-- ADMIN / SUPER ADMIN DASHBOARD -->
-    <h2 class="mb-4">Admin Dashboard</h2>
+<div aria-live="polite" aria-atomic="true" class="position-relative">
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer">
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="toast align-items-center text-bg-success border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        @TempData["SuccessMessage"]
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        }
 
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="toast align-items-center text-bg-danger border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        @TempData["ErrorMessage"]
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@if (User.IsInRole("Super Admin"))
+    {
+    <br />
+    <h2 class="mb-4 text-center">Super Admin Dashboard</h2>
     <div class="row">
         <div class="col-md-4">
             <div class="card shadow p-3">
@@ -18,14 +43,12 @@
                 <h2>@ViewBag.TotalTeachers</h2>
             </div>
         </div>
-
         <div class="col-md-4">
             <div class="card shadow p-3">
                 <h5>Total Students</h5>
                 <h2>@ViewBag.TotalStudents</h2>
             </div>
         </div>
-
         <div class="col-md-4">
             <div class="card shadow p-3">
                 <h5>Total Evaluations</h5>
@@ -34,70 +57,89 @@
         </div>
     </div>
 }
-else if (role == "Student")
+
+@if (User.IsInRole("Admin"))
 {
 
-    <!-- STUDENT DASHBOARD -->
     <br />
-    <h2 class="mb-4 text-center">Teacher Evaluation</h2>
-
+    <h2 class="mb-4 text-center">Admin Dashboard</h2>
     <div class="row">
-
-        @if (Model == null || !Model.Any())
+        <div class="col-md-4">
+            <div class="card shadow p-3">
+                <h5>Total Teachers</h5>
+                <h2>@ViewBag.TotalTeachers</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow p-3">
+                <h5>Total Students</h5>
+                <h2>@ViewBag.TotalStudents</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow p-3">
+                <h5>Total Evaluations</h5>
+                <h2>@ViewBag.TotalEvaluations</h2>
+            </div>
+        </div>
+    </div>
+}
+else if (User.IsInRole("Student"))
+{
+    <h2 class="mb-4 text-center">Teacher Evaluation</h2>
+    <div class="row">
+        @if (!Model.Any())
         {
             <div class="col-12 text-center mt-5">
                 <div class="alert alert-warning p-4">
                     <h4 class="mb-2">No Teachers Found</h4>
-                    <p class="mb-0">There are no teachers available for evaluation.</p>
+                    <p>There are no teachers available for evaluation.</p>
                 </div>
             </div>
         }
         else
         {
-            @foreach (var teacher in Model)
+            @foreach (var item in Model)
             {
                 <div class="col-md-4 mb-4">
                     <div class="card shadow p-3 text-center">
-
-                        <!-- Fixed size image -->
-                        <img src="@teacher.PicturePath"
-                             class="teacher-img rounded mb-2"
-                             alt="@teacher.FullName" />
-
-                        <h5>@teacher.FullName</h5>
-                        <p class="text-muted">@teacher.Department</p>
-
-                        <p><strong>Level:</strong> @teacher.Level?.LevelName</p>
+                        <img src="@item.Teacher.PicturePath" class="teacher-img rounded mb-2" alt="@item.Teacher.FullName" />
+                        <h5>@item.Teacher.FullName</h5>
+                        <p class="text-muted">@item.Teacher.Department</p>
+                        <p><strong>Level:</strong> @item.Teacher.Level?.LevelName</p>
 
                         <a asp-controller="TeacherEvaluations"
                            asp-action="Create"
-                           asp-route-id="@teacher.TeacherId"
+                           asp-route-teacherId="@item.Teacher.TeacherId"
+                           asp-route-subjectId="@item.FirstSubjectId"
                            class="btn btn-primary w-100">
                             Evaluate Teacher
                         </a>
-
                     </div>
                 </div>
             }
         }
-
     </div>
 
     <style>
-        /* All teacher images have the same size and scale nicely */
         .teacher-img {
-            width: 150px; /* Fixed width */
-            height: 150px; /* Fixed height */
-            object-fit: cover; /* Crop/scale to fill the box */
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
             display: block;
-            margin-left: auto;
-            margin-right: auto;
+            margin: auto;
         }
 
         .card h5 {
             margin-top: 10px;
             margin-bottom: 5px;
         }
-    </style>
 
+        .toast {
+            min-width: 250px;
+            max-width: 350px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            font-size: 14px;
+        }
+    </style>
 }

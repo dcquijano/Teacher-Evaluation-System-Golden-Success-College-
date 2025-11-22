@@ -219,6 +219,11 @@
         const subjectSelect = document.getElementById('subjectSelect');
         const submitBtn = document.getElementById('submitBtn');
 
+        // Check if teacher ID is passed from dashboard
+        const urlParams = new URLSearchParams(window.location.search);
+        const preselectedTeacherId = urlParams.get('teacherId');
+        const preselectedSubjectId = urlParams.get('subjectId');
+
         // Loading states
         function setSubjectLoading(loading = true) {
             subjectSelect.disabled = loading;
@@ -264,7 +269,7 @@
         }
 
         // Load subjects for selected teacher
-        async function loadSubjects(teacherId) {
+        async function loadSubjects(teacherId, autoSelectSubjectId = null) {
             if (!teacherId) {
                 subjectSelect.disabled = true;
                 subjectSelect.innerHTML = '<option value="">-- Select Teacher First --</option>';
@@ -296,6 +301,17 @@
                         subjectSelect.appendChild(opt);
                     });
                     subjectSelect.disabled = false;
+
+                    // Auto-select subject if provided
+                    if (autoSelectSubjectId) {
+                        subjectSelect.value = autoSelectSubjectId;
+                        if (subjectSelect.value === autoSelectSubjectId) {
+                            showEvaluationSections();
+                            setTimeout(() => {
+                                document.getElementById('ratingScaleInfo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 300);
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Error loading subjects:', error);
@@ -318,6 +334,13 @@
 
             document.getElementById('totalScore').textContent = total;
             document.getElementById('averageScore').textContent = count > 0 ? (total / count).toFixed(2) : '0.00';
+        }
+
+        // Auto-select teacher if passed from dashboard
+        // Auto-select teacher if passed from dashboard
+        if (preselectedTeacherId && teacherSelect) {
+            teacherSelect.value = preselectedTeacherId;
+            loadSubjects(preselectedTeacherId, preselectedSubjectId);
         }
 
         // Event: Teacher changed

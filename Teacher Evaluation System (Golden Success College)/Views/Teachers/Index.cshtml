@@ -1,67 +1,368 @@
 ﻿@model IEnumerable<Teacher_Evaluation_System__Golden_Success_College_.Models.Teacher>
-
 @{
-    ViewData["Title"] = "Index";
+    ViewData["Title"] = "Teachers";
     Layout = "_Layoutadmin";
 }
 
-<h1>Index</h1>
+<h1>Teachers</h1>
 
-<p>
-    <a asp-action="Create">Create New</a>
-</p>
-<table class="table">
+<div class="mb-3">
+    <button class="btn btn-primary" id="btnCreateTeacher">
+        <i class="bi bi-plus-circle"></i> Create Teacher
+    </button>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); z-index:1050; text-align:center;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="mt-2">Loading...</div>
+    </div>
+</div>
+
+<table class="table table-bordered table-striped table-sm align-middle w-100" id="teachersTable">
     <thead>
         <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.FullName)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Department)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Level)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.PicturePath)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.IsActive)
-            </th>
-            <th></th>
+            <th>Picture</th>
+            <th>Full Name</th>
+            <th>Department</th>
+            <th>Level</th>
+            <th>Status</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
-@foreach (var item in Model) {
-        <tr>
-            <td>
-                @Html.DisplayFor(modelItem => item.FullName)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.Department)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.Level.Description)
-            </td>
-            <td>
+        @foreach (var item in Model)
+        {
+            <tr data-id="@item.TeacherId">
+                <td class="text-center">
                     @if (!string.IsNullOrEmpty(item.PicturePath))
                     {
-                        <img src="@item.PicturePath" alt="Teacher Image" width="60" height="60" class="rounded" />
+                        <img src="@item.PicturePath" alt="@item.FullName" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" />
                     }
                     else
                     {
-                        <span class="text-muted">No Image</span>
+                        <div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="bi bi-person text-white"></i>
+                        </div>
                     }
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.IsActive)
-            </td>
-            <td>
-                <a asp-action="Edit" asp-route-id="@item.TeacherId">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.TeacherId">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.TeacherId">Delete</a>
-            </td>
-        </tr>
-}
+                </td>
+                <td>@item.FullName</td>
+                <td>@item.Department</td>
+                <td>@item.Level?.LevelName</td>
+                <td>
+                    @if (item.IsActive)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Inactive</span>
+                    }
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-warning btn-edit" data-id="@item.TeacherId">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger btn-delete" data-id="@item.TeacherId">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
     </tbody>
 </table>
+
+<!-- Modal for Create/Edit -->
+<div class="modal fade" id="teacherModal" tabindex="-1" aria-labelledby="teacherModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="teacherModalLabel">Create/Edit Teacher</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="teacherForm" enctype="multipart/form-data">
+                    <input type="hidden" id="TeacherId" name="TeacherId" />
+
+                    <div class="mb-3">
+                        <label for="FullName" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="FullName" name="FullName" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="Department" class="form-label">Department</label>
+                        <input type="text" class="form-control" id="Department" name="Department" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="LevelId" class="form-label">Level</label>
+                        <select class="form-select" id="LevelId" name="LevelId" required>
+                            <option value="">-- Select Level --</option>
+                            @foreach (var level in ViewBag.LevelId as SelectList)
+                            {
+                                <option value="@level.Value">@level.Text</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="PictureFile" class="form-label">Picture</label>
+                        <input type="file" class="form-control" id="PictureFile" name="PictureFile" accept="image/*" />
+                        <small class="form-text text-muted">Accepted: jpg, jpeg, png, gif (Max: 5MB)</small>
+                        <div class="mt-2 text-center">
+                            <img id="previewPicture" src="#" alt="Preview" class="img-thumbnail" style="display:none; max-height:200px; max-width: 100%;" />
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input type="checkbox" class="form-check-input" id="IsActive" name="IsActive" checked />
+                        <label class="form-check-label" for="IsActive">Active Status</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveTeacherBtn">
+                    <i class="bi bi-check-circle"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            var toastEl = $('#toast');
+            var toastMessage = $('#toastMessage');
+            var loadingOverlay = $('#loadingOverlay');
+
+            function showToast(message, bgClass = 'bg-success') {
+                toastEl.removeClass('bg-success bg-danger bg-warning').addClass(bgClass);
+                toastMessage.text(message);
+                var toast = new bootstrap.Toast(toastEl[0]);
+                toast.show();
+            }
+
+            function showLoading(show = true) {
+                show ? loadingOverlay.show() : loadingOverlay.hide();
+            }
+
+            var teacherModalEl = document.getElementById('teacherModal');
+            var teacherModal = new bootstrap.Modal(teacherModalEl);
+
+            var table = $('#teachersTable').DataTable({
+                "columnDefs": [{ "orderable": false, "targets": [0, 5] }]
+            });
+
+            // Image preview
+            $('#PictureFile').change(function() {
+                const [file] = this.files;
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        showToast('File size must not exceed 5MB', 'bg-danger');
+                        $(this).val('');
+                        $('#previewPicture').hide();
+                        return;
+                    }
+
+                    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                    if (!allowedTypes.includes(file.type)) {
+                        showToast('Only image files are allowed (jpg, jpeg, png, gif)', 'bg-danger');
+                        $(this).val('');
+                        $('#previewPicture').hide();
+                        return;
+                    }
+
+                    $('#previewPicture').attr('src', URL.createObjectURL(file)).show();
+                } else {
+                    $('#previewPicture').hide();
+                }
+            });
+
+            // Open modal for create
+            $('#btnCreateTeacher').click(function () {
+                $('#teacherModalLabel').text('Create Teacher');
+                $('#TeacherId').val('');
+                $('#FullName').val('');
+                $('#Department').val('');
+                $('#LevelId').val('');
+                $('#PictureFile').val('');
+                $('#previewPicture').hide();
+                $('#IsActive').prop('checked', true);
+                teacherModal.show();
+            });
+
+            // Open modal for edit
+            $(document).on('click', '.btn-edit', function () {
+                var id = $(this).data('id');
+                showLoading(true);
+
+                $.get(`/api/TeachersApi/${id}`, function (res) {
+                    showLoading(false);
+                    if (res.success) {
+                        $('#teacherModalLabel').text('Edit Teacher');
+                        $('#TeacherId').val(res.data.teacherId);
+                        $('#FullName').val(res.data.fullName);
+                        $('#Department').val(res.data.department);
+                        $('#LevelId').val(res.data.levelId || '');
+                        $('#IsActive').prop('checked', res.data.isActive);
+
+                        if(res.data.picturePath) {
+                            $('#previewPicture').attr('src', res.data.picturePath).show();
+                        } else {
+                            $('#previewPicture').hide();
+                        }
+
+                        teacherModal.show();
+                    } else {
+                        showToast(res.message, 'bg-danger');
+                    }
+                }).fail(function () {
+                    showLoading(false);
+                    showToast('Failed to load teacher', 'bg-danger');
+                });
+            });
+
+            // Save teacher (create or edit)
+            $('#saveTeacherBtn').click(function () {
+                var teacherId = $('#TeacherId').val();
+                var isEdit = teacherId && teacherId != '';
+
+                // Validation
+                if (!$('#FullName').val().trim()) {
+                    showToast('Full Name is required', 'bg-danger');
+                    return;
+                }
+                if (!$('#Department').val().trim()) {
+                    showToast('Department is required', 'bg-danger');
+                    return;
+                }
+                if (!$('#LevelId').val()) {
+                    showToast('Please select a level', 'bg-danger');
+                    return;
+                }
+
+                var formData = new FormData();
+                formData.append('fullName', $('#FullName').val().trim());
+                formData.append('department', $('#Department').val().trim());
+                formData.append('levelId', $('#LevelId').val());
+                formData.append('isActive', $('#IsActive').is(':checked'));
+
+                var pictureFile = $('#PictureFile')[0].files[0];
+                if (pictureFile) {
+                    formData.append('pictureFile', pictureFile);
+                }
+
+                var url = isEdit ? `/api/TeachersApi/${teacherId}` : '/api/TeachersApi';
+                var type = isEdit ? 'PUT' : 'POST';
+
+                showLoading(true);
+                $.ajax({
+                    url: url,
+                    type: type,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            var levelName = res.data.level ? res.data.level.name : '';
+                            var statusBadge = res.data.isActive
+                                ? '<span class="badge bg-success">Active</span>'
+                                : '<span class="badge bg-secondary">Inactive</span>';
+
+                            var pictureHtml = res.data.picturePath
+                                ? `<img src="${res.data.picturePath}" alt="${res.data.fullName}" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" />`
+                                : '<div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="bi bi-person text-white"></i></div>';
+
+                            if (isEdit) {
+                                var row = table.row($(`tr[data-id="${teacherId}"]`));
+                                row.data([
+                                    pictureHtml,
+                                    res.data.fullName,
+                                    res.data.department,
+                                    levelName,
+                                    statusBadge,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.teacherId}"><i class="bi bi-pencil-square"></i></button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.teacherId}"><i class="bi bi-trash"></i></button>`
+                                ]).draw(false);
+                            } else {
+                                var newRow = table.row.add([
+                                    pictureHtml,
+                                    res.data.fullName,
+                                    res.data.department,
+                                    levelName,
+                                    statusBadge,
+                                    `<button class="btn btn-sm btn-warning btn-edit" data-id="${res.data.teacherId}"><i class="bi bi-pencil-square"></i></button>
+                                     <button class="btn btn-sm btn-danger btn-delete" data-id="${res.data.teacherId}"><i class="bi bi-trash"></i></button>`
+                                ]).draw(false).node();
+                                $(newRow).attr('data-id', res.data.teacherId);
+                            }
+                            showToast(res.message);
+                            teacherModal.hide();
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function (xhr) {
+                        showLoading(false);
+                        var errorMsg = 'Failed to save teacher!';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        }
+                        showToast(errorMsg, 'bg-danger');
+                    }
+                });
+            });
+
+            // Delete teacher
+            $(document).on('click', '.btn-delete', function () {
+                if (!confirm('Are you sure you want to delete this teacher?')) return;
+                var id = $(this).data('id');
+
+                showLoading(true);
+                $.ajax({
+                    url: `/api/TeachersApi/${id}`,
+                    type: 'DELETE',
+                    success: function (res) {
+                        showLoading(false);
+                        if (res.success) {
+                            table.row($(`tr[data-id="${id}"]`)).remove().draw();
+                            showToast(res.message);
+                        } else {
+                            showToast(res.message, 'bg-danger');
+                        }
+                    },
+                    error: function (xhr) {
+                        showLoading(false);
+                        var errorMsg = 'Failed to delete teacher!';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        }
+                        showToast(errorMsg, 'bg-danger');
+                    }
+                });
+            });
+        });
+    </script>
+}

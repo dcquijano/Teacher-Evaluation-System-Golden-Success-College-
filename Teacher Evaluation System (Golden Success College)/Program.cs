@@ -15,6 +15,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
+// Register EmailService
+builder.Services.AddScoped<EmailService>();
 
 // Session
 builder.Services.AddDistributedMemoryCache();

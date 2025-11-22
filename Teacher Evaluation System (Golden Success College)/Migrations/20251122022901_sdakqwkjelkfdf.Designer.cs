@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 
@@ -11,9 +12,11 @@ using Teacher_Evaluation_System__Golden_Success_College_.Data;
 namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 {
     [DbContext(typeof(Teacher_Evaluation_System__Golden_Success_College_Context))]
-    partial class Teacher_Evaluation_System__Golden_Success_College_ContextModelSnapshot : ModelSnapshot
+    [Migration("20251122022901_sdakqwkjelkfdf")]
+    partial class sdakqwkjelkfdf
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -302,14 +305,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TeacherId"));
 
                     b.Property<string>("Department")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FullName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -318,8 +317,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("PicturePath")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("TeacherId");
 

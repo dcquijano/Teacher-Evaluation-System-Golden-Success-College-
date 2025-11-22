@@ -1,20 +1,23 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication;
+﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Helper;
+using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 {
     public class AuthController : Controller
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
+        private readonly EmailService _emailService;
 
-        public AuthController(Teacher_Evaluation_System__Golden_Success_College_Context context)
+        public AuthController(Teacher_Evaluation_System__Golden_Success_College_Context context, EmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
         // GET: Login Page
@@ -23,14 +26,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View();
         }
 
-        // POST: Login
+       // POST: Login
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(string email, string password)
         {
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
-                ModelState.AddModelError("", "Email and Password are required.");
+                TempData["ErrorMessage"] = "Email and Password are required.";
                 return View();
             }
 
@@ -42,6 +45,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (user != null && !string.IsNullOrEmpty(user.Password) && PasswordHelper.VerifyPassword(password, user.Password))
             {
                 await SignInUser(user.UserId, user.FullName!, user.Role!.Name);
+                TempData["SuccessMessage"] = $"Welcome back, {user.FullName}!";
                 return RedirectToAction("Index", "Dashboard");
             }
 
@@ -53,11 +57,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (student != null && PasswordHelper.VerifyPassword(password, student.Password))
             {
                 await SignInUser(student.StudentId, student.FullName!, student.Role!.Name);
+                TempData["SuccessMessage"] = $"Welcome back, {student.FullName}!";
                 return RedirectToAction("Index", "Dashboard");
             }
 
             // Failed Login
-            ModelState.AddModelError("", "Invalid Email or Password.");
+            TempData["ErrorMessage"] = "Invalid Email or Password.";
             return View();
         }
 
@@ -92,10 +97,177 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return RedirectToAction("Login");
         }
 
+
+      
         // Access Denied Page
         public IActionResult AccessDenied()
         {
             return View();
         }
+
+
+
+         // GET: /Auth/ForgotPassword
+        [HttpGet]
+        public IActionResult ForgotPassword()
+        {
+            return View();
+        }
+
+        // POST: /Auth/ForgotPassword
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordRequestViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return View(model);
+
+            var user = await _context.User.FirstOrDefaultAsync(u => u.Email == model.Email);
+            var student = await _context.Student.FirstOrDefaultAsync(s => s.Email == model.Email);
+
+            if (user == null && student == null)
+            {
+                ModelState.AddModelError("", "Email not found");
+                return View(model);
+            }
+
+            // Generate a reset token (store in DB in production)
+            var token = Guid.NewGuid().ToString();
+
+            // Build reset link
+            var resetLink = Url.Action("ResetPassword", "Auth", new { token = token, email = model.Email }, Request.Scheme);
+
+            string subject = "Password Reset Request";
+            string body = $@"
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset='UTF-8'>
+                    <title>Password Reset</title>
+                </head>
+                <body style='font-family: Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 0;'>
+                    <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #f8f9fa; padding: 30px 0;'>
+                        <tr>
+                            <td align='center'>
+                                <table width='600' cellpadding='0' cellspacing='0' style='background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);'>
+                                    <tr>
+                                        <td style='padding: 30px; text-align: center;'>
+                                            <h2 style='color: #343a40;'>Reset Your Password</h2>
+                                            <p style='color: #6c757d; font-size: 16px; line-height: 1.5;'>
+                                                You requested a password reset. Click the button below to set a new password:
+                                            </p>
+                                            <a href='{resetLink}' 
+                                               style='display: inline-block; padding: 12px 25px; margin: 20px 0; font-size: 16px; color: #ffffff; background-color: #007bff; text-decoration: none; border-radius: 5px;'>
+                                               Reset Password
+                                            </a>
+                                            <p style='color: #6c757d; font-size: 14px;'>
+                                                If you did not request this, please ignore this email.
+                                            </p>
+                                            <hr style='border: none; border-top: 1px solid #dee2e6;'/>
+                                            <p style='color: #adb5bd; font-size: 12px;'>
+                                                &copy; {DateTime.Now.Year} Golden Success College. All rights reserved.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>";
+
+
+            await _emailService.SendEmailAsync(model.Email, subject, body);
+
+            TempData["SuccessMessage"] = "Password reset link has been sent to your email.";
+            return RedirectToAction(nameof(ForgotPassword));
+        }
+
+        // GET: /Auth/ResetPassword?token=xyz&email=abc
+        [HttpGet]
+        public IActionResult ResetPassword(string token, string email)
+        {
+            var model = new ForgotPasswordViewModel
+            {
+                Token = token,
+                Email = email
+            };
+            return View(model);
+        }
+
+        // POST: /Auth/ResetPassword
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ForgotPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return View(model);
+
+            var user = await _context.User.FirstOrDefaultAsync(u => u.Email == model.Email);
+            var student = await _context.Student.FirstOrDefaultAsync(s => s.Email == model.Email);
+
+            if (user == null && student == null)
+            {
+                ModelState.AddModelError("", "Invalid request");
+                return View(model);
+            }
+
+            // Update password
+            if (user != null)
+                user.Password = PasswordHelper.HashPassword(model.NewPassword);
+            else if (student != null)
+                student.Password = PasswordHelper.HashPassword(model.NewPassword);
+
+            await _context.SaveChangesAsync();
+
+            // Send success email
+            string subject = "Password Successfully Changed";
+            string body = $@"
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset='UTF-8'>
+                        <title>Password Changed</title>
+                    </head>
+                    <body style='font-family: Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 0;'>
+                        <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #f8f9fa; padding: 30px 0;'>
+                            <tr>
+                                <td align='center'>
+                                    <table width='600' cellpadding='0' cellspacing='0' style='background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);'>
+                                        <tr>
+                                            <td style='padding: 30px; text-align: center;'>
+                                                <h2 style='color: #28a745;'>Password Successfully Changed</h2>
+                                                <p style='color: #6c757d; font-size: 16px; line-height: 1.5;'>
+                                                    Your password has been successfully updated.
+                                                </p>
+                                                <p style='color: #6c757d; font-size: 16px; line-height: 1.5;'>
+                                                    If you did not perform this action, please contact support immediately.
+                                                </p>
+                                                <hr style='border: none; border-top: 1px solid #dee2e6; margin: 20px 0;'/>
+                                                <p style='color: #adb5bd; font-size: 12px;'>
+                                                    &copy; {DateTime.Now.Year} Golden Success College. All rights reserved.
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </body>
+                    </html>";
+
+
+            // Determine recipient
+            var recipientEmail = user?.Email ?? student?.Email;
+            if (!string.IsNullOrEmpty(recipientEmail))
+            {
+                await _emailService.SendEmailAsync(recipientEmail, subject, body);
+            }
+
+            TempData["SuccessMessage"] = "Password successfully updated! A confirmation email has been sent.";
+            return RedirectToAction("Login", "Auth");
+        }
+
+
     }
 }

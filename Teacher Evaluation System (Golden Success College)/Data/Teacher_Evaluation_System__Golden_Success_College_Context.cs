@@ -28,6 +28,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
         public DbSet<Teacher_Evaluation_System__Golden_Success_College_.Models.Enrollment> Enrollment { get; set; } = default!;
         public DbSet<Teacher_Evaluation_System__Golden_Success_College_.Models.ActivityLog> ActivityLog { get; set; } = default!;
 
+        public DbSet<EvaluationPeriod> EvaluationPeriod { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -155,6 +157,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
 
             modelBuilder.Entity<ActivityLog>()
                 .HasIndex(a => a.EvaluationId);
+
+
+            // Configure EvaluationPeriod
+            modelBuilder.Entity<EvaluationPeriod>(entity =>
+            {
+                entity.HasIndex(e => e.IsCurrent);
+                entity.HasIndex(e => new { e.AcademicYear, e.Semester });
+
+                // Ensure only one current period at a time (handled in service/controller)
+            });
         }
     }
 }

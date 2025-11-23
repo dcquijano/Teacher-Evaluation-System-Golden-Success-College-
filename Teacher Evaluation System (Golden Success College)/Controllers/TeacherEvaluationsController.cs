@@ -15,13 +15,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
         private readonly IActivityLogService _activityLogService;
+        private readonly IEvaluationPeriodService _periodService;
 
         public TeacherEvaluationsController(
             Teacher_Evaluation_System__Golden_Success_College_Context context,
-            IActivityLogService activityLogService)
+            IActivityLogService activityLogService,
+            IEvaluationPeriodService periodService)
         {
             _context = context;
             _activityLogService = activityLogService;
+            _periodService = periodService;
         }
 
         // GET: TeacherEvaluations/Index
@@ -35,7 +38,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .Include(e => e.Teacher)
                 .Include(e => e.Subject)
                 .Include(e => e.Student)
+                .Include(e => e.EvaluationPeriod)
                 .Include(e => e.Scores);
+
+            var currentPeriod = await _periodService.GetCurrentPeriodAsync();
+            ViewBag.CurrentPeriod = currentPeriod;
 
             if (!isAdmin)
             {
@@ -66,15 +73,44 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         [Authorize(Roles = "Admin,Super Admin,Student")]
         public async Task<IActionResult> Create()
         {
+            // Check if evaluation period is active
+            var currentPeriod = await _periodService.GetCurrentPeriodAsync();
+            var canEvaluate = await _periodService.CanEvaluateAsync();
+
+            if (!canEvaluate || currentPeriod == null)
+            {
+                if (currentPeriod == null)
+                {
+                    TempData["ErrorMessage"] = "No active evaluation period is currently set. Please contact the administrator.";
+                }
+                else if (currentPeriod.Status == "Upcoming")
+                {
+                    TempData["ErrorMessage"] = $"Evaluation period has not started yet. It will begin on {currentPeriod.StartDate:MMMM dd, yyyy}.";
+                }
+                else if (currentPeriod.Status == "Completed")
+                {
+                    TempData["ErrorMessage"] = $"Evaluation period has ended on {currentPeriod.EndDate:MMMM dd, yyyy}. Please contact the administrator.";
+                }
+                else
+                {
+                    TempData["ErrorMessage"] = $"Evaluation period is not active. Period: {currentPeriod.PeriodName} ({currentPeriod.StartDate:MMM dd, yyyy} - {currentPeriod.EndDate:MMM dd, yyyy})";
+                }
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Display current period information
+            ViewBag.CurrentPeriod = currentPeriod;
+            TempData["InfoMessage"] = $"Evaluating for: {currentPeriod.PeriodName} ({currentPeriod.Semester}, {currentPeriod.AcademicYear})";
+
             var studentId = GetCurrentStudentId();
             var student = await _context.Student.FindAsync(studentId);
 
-            var availablePairs = await GetAvailableTeacherSubjectPairs(studentId);
+            var availablePairs = await GetAvailableTeacherSubjectPairs(studentId, currentPeriod.EvaluationPeriodId);
 
             if (!availablePairs.Any())
             {
                 ViewBag.HasAvailableEnrollments = false;
-                TempData["Message"] = "You have completed all evaluations. Thank you!";
+                TempData["Message"] = "You have completed all evaluations for this period. Thank you!";
 
                 var emptyViewModel = new EvaluationFormViewModel
                 {
@@ -139,7 +175,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         public async Task<JsonResult> GetEnrolledSubjects(int teacherId, int? studentId = null)
         {
             var currentStudentId = studentId ?? GetCurrentStudentId();
-            var availablePairs = await GetAvailableTeacherSubjectPairs(currentStudentId);
+
+            // Get current period
+            var currentPeriod = await _periodService.GetCurrentPeriodAsync();
+            if (currentPeriod == null)
+            {
+                return Json(new List<object>());
+            }
+
+            var availablePairs = await GetAvailableTeacherSubjectPairs(currentStudentId, currentPeriod.EvaluationPeriodId);
 
             var subjects = availablePairs
                 .Where(x => x.TeacherId == teacherId)
@@ -156,6 +200,13 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         [HttpGet]
         public async Task<JsonResult> GetEnrolledStudents(int teacherId, int subjectId)
         {
+            // Get current period
+            var currentPeriod = await _periodService.GetCurrentPeriodAsync();
+            if (currentPeriod == null)
+            {
+                return Json(new List<object>());
+            }
+
             var enrolledStudents = await _context.Enrollment
                 .Include(e => e.Student)
                 .Where(e => e.TeacherId == teacherId && e.SubjectId == subjectId)
@@ -164,7 +215,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .ToListAsync();
 
             var evaluatedStudents = await _context.Evaluation
-                .Where(e => e.TeacherId == teacherId && e.SubjectId == subjectId)
+                .Where(e => e.TeacherId == teacherId
+                    && e.SubjectId == subjectId
+                    && e.EvaluationPeriodId == currentPeriod.EvaluationPeriodId)
                 .Select(e => e.StudentId)
                 .ToListAsync();
 
@@ -191,6 +244,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return RedirectToAction(nameof(Create));
             }
 
+            // Get and validate current period
+            var currentPeriod = await _periodService.GetCurrentPeriodAsync();
+            if (currentPeriod == null || !currentPeriod.IsValidForEvaluation())
+            {
+                TempData["ErrorMessage"] = "Evaluation period is not active or has ended.";
+                return RedirectToAction(nameof(Create));
+            }
+
             var studentId = GetCurrentStudentId();
             var ipAddress = GetClientIpAddress();
 
@@ -213,14 +274,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return RedirectToAction(nameof(Create));
             }
 
+            // Check if already evaluated for THIS PERIOD
             var alreadyEvaluated = await _context.Evaluation
                 .AnyAsync(e => e.StudentId == studentId
                     && e.TeacherId == model.TeacherId
-                    && e.SubjectId == model.SubjectId);
+                    && e.SubjectId == model.SubjectId
+                    && e.EvaluationPeriodId == currentPeriod.EvaluationPeriodId);
 
             if (alreadyEvaluated)
             {
-                TempData["ErrorMessage"] = "You have already evaluated this teacher for this subject.";
+                TempData["ErrorMessage"] = "You have already evaluated this teacher for this subject in the current period.";
                 return RedirectToAction(nameof(Create));
             }
 
@@ -229,6 +292,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 StudentId = studentId,
                 TeacherId = model.TeacherId,
                 SubjectId = model.SubjectId,
+                EvaluationPeriodId = currentPeriod.EvaluationPeriodId,
                 IsAnonymous = model.IsAnonymous,
                 DateEvaluated = DateTime.Now,
                 Comments = model.Comments,
@@ -251,7 +315,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 ipAddress
             );
 
-            TempData["SuccessMessage"] = "Evaluation submitted successfully! Thank you for your feedback.";
+            TempData["SuccessMessage"] = $"Evaluation submitted successfully for {currentPeriod.PeriodName}! Thank you for your feedback.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -268,6 +332,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .Include(e => e.Teacher)
                 .Include(e => e.Subject)
                 .Include(e => e.Student)
+                .Include(e => e.EvaluationPeriod)
                 .Include(e => e.Scores)
                     .ThenInclude(s => s.Question)
                         .ThenInclude(q => q.Criteria)
@@ -318,6 +383,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     }).ToList()
             };
 
+            // Add evaluation period info to ViewBag
+            if (evaluation.EvaluationPeriod != null)
+            {
+                ViewBag.EvaluationPeriod = evaluation.EvaluationPeriod;
+            }
+
             return View(viewModel);
         }
 
@@ -356,10 +427,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
             return RedirectToAction(nameof(Index));
         }
-
-        // ============================================
-        // API Controller - Delete Method
-        // ============================================
 
         // DELETE: api/TeacherEvaluationsApi/5
         [HttpDelete("{id}")]
@@ -437,7 +504,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return ipAddress ?? "Unknown";
         }
 
-        private async Task<List<Enrollment>> GetAvailableTeacherSubjectPairs(int studentId)
+        private async Task<List<Enrollment>> GetAvailableTeacherSubjectPairs(int studentId, int evaluationPeriodId)
         {
             var enrollments = await _context.Enrollment
                 .Include(e => e.Teacher)
@@ -445,8 +512,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .Where(e => e.StudentId == studentId && e.Teacher.IsActive)
                 .ToListAsync();
 
+            // Filter out already evaluated pairs for THIS PERIOD
             var evaluatedPairs = await _context.Evaluation
-                .Where(e => e.StudentId == studentId)
+                .Where(e => e.StudentId == studentId && e.EvaluationPeriodId == evaluationPeriodId)
                 .Select(e => new { e.TeacherId, e.SubjectId })
                 .ToListAsync();
 

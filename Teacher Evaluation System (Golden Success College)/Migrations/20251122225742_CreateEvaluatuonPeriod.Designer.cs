@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 
@@ -11,9 +12,11 @@ using Teacher_Evaluation_System__Golden_Success_College_.Data;
 namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 {
     [DbContext(typeof(Teacher_Evaluation_System__Golden_Success_College_Context))]
-    partial class Teacher_Evaluation_System__Golden_Success_College_ContextModelSnapshot : ModelSnapshot
+    [Migration("20251122225742_CreateEvaluatuonPeriod")]
+    partial class CreateEvaluatuonPeriod
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

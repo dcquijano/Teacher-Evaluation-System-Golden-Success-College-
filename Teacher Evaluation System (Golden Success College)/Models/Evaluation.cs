@@ -9,6 +9,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Models
         public int EvaluationId { get; set; }
 
         // FIXED: Added SubjectId to know which class was evaluated
+
+        [Display(Name = "Evaluation Period")]
+        public int? EvaluationPeriodId { get; set; }
+
+        [ForeignKey("EvaluationPeriodId")]
+        public virtual EvaluationPeriod? EvaluationPeriod { get; set; }
+
+
         public int SubjectId { get; set; }
         [ForeignKey(nameof(SubjectId))]
         public Subject? Subject { get; set; }

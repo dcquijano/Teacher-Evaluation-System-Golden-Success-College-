@@ -12,7 +12,7 @@ using Teacher_Evaluation_System__Golden_Success_College_.Models;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 {
-    [Authorize(Roles = "Admin,Super Admin")]
+    [Authorize(Roles = "Super Admin")]
     public class UsersController : Controller
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;

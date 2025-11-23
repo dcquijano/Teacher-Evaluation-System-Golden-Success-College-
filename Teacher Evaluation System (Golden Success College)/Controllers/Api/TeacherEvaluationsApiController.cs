@@ -15,13 +15,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
         private readonly IActivityLogService _activityLogService;
+        private readonly IEvaluationPeriodService _periodService;
 
         public TeacherEvaluationsApiController(
             Teacher_Evaluation_System__Golden_Success_College_Context context,
-            IActivityLogService activityLogService)
+            IActivityLogService activityLogService,
+            IEvaluationPeriodService periodService)
         {
             _context = context;
             _activityLogService = activityLogService;
+            _periodService = periodService;
         }
 
         // GET: api/TeacherEvaluationsApi
@@ -30,7 +33,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             [FromQuery] string? filterTeacher,
             [FromQuery] string? filterSubject,
             [FromQuery] DateTime? filterDateFrom,
-            [FromQuery] DateTime? filterDateTo)
+            [FromQuery] DateTime? filterDateTo,
+            [FromQuery] int? filterPeriodId)
         {
             try
             {
@@ -41,6 +45,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     .Include(e => e.Teacher)
                     .Include(e => e.Subject)
                     .Include(e => e.Student)
+                    .Include(e => e.EvaluationPeriod)
                     .Include(e => e.Scores)
                         .ThenInclude(s => s.Question)
                             .ThenInclude(q => q.Criteria);
@@ -66,6 +71,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                 if (filterDateTo.HasValue)
                     query = query.Where(e => e.DateEvaluated <= filterDateTo.Value.Date.AddDays(1).AddTicks(-1));
 
+                if (filterPeriodId.HasValue)
+                    query = query.Where(e => e.EvaluationPeriodId == filterPeriodId.Value);
+
                 var evaluations = await query
                     .OrderByDescending(e => e.DateEvaluated)
                     .Select(e => new
@@ -80,7 +88,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                         e.IsAnonymous,
                         e.DateEvaluated,
                         e.Comments,
-                        e.AverageScore
+                        e.AverageScore,
+                        Period = e.EvaluationPeriod != null ? new
+                        {
+                            e.EvaluationPeriod.EvaluationPeriodId,
+                            e.EvaluationPeriod.PeriodName,
+                            e.EvaluationPeriod.AcademicYear,
+                            e.EvaluationPeriod.Semester
+                        } : null
                     })
                     .ToListAsync();
 
@@ -113,6 +128,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     .Include(e => e.Teacher)
                     .Include(e => e.Subject)
                     .Include(e => e.Student)
+                    .Include(e => e.EvaluationPeriod)
                     .Include(e => e.Scores)
                         .ThenInclude(s => s.Question)
                             .ThenInclude(q => q.Criteria)
@@ -153,6 +169,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     evaluation.DateEvaluated,
                     evaluation.Comments,
                     OverallAverage = evaluation.AverageScore,
+                    Period = evaluation.EvaluationPeriod != null ? new
+                    {
+                        evaluation.EvaluationPeriod.EvaluationPeriodId,
+                        evaluation.EvaluationPeriod.PeriodName,
+                        evaluation.EvaluationPeriod.AcademicYear,
+                        evaluation.EvaluationPeriod.Semester,
+                        evaluation.EvaluationPeriod.StartDate,
+                        evaluation.EvaluationPeriod.EndDate
+                    } : null,
                     CriteriaResults = evaluation.Scores
                         .GroupBy(s => new { s.Question.Criteria.CriteriaId, s.Question.Criteria.Name })
                         .Select(g => new
@@ -200,6 +225,17 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     });
                 }
 
+                // Get and validate current period
+                var currentPeriod = await _periodService.GetCurrentPeriodAsync();
+                if (currentPeriod == null || !currentPeriod.IsValidForEvaluation())
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Evaluation period is not active or has ended"
+                    });
+                }
+
                 var studentId = GetCurrentStudentId();
                 var ipAddress = GetClientIpAddress();
 
@@ -226,18 +262,19 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     });
                 }
 
-                // Check if already evaluated
+                // Check if already evaluated FOR THIS PERIOD
                 var alreadyEvaluated = await _context.Evaluation
                     .AnyAsync(e => e.StudentId == studentId
                         && e.TeacherId == model.TeacherId
-                        && e.SubjectId == model.SubjectId);
+                        && e.SubjectId == model.SubjectId
+                        && e.EvaluationPeriodId == currentPeriod.EvaluationPeriodId);
 
                 if (alreadyEvaluated)
                 {
                     return BadRequest(new
                     {
                         success = false,
-                        message = "You have already evaluated this teacher for this subject"
+                        message = "You have already evaluated this teacher for this subject in the current period"
                     });
                 }
 
@@ -247,6 +284,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     StudentId = studentId,
                     TeacherId = model.TeacherId,
                     SubjectId = model.SubjectId,
+                    EvaluationPeriodId = currentPeriod.EvaluationPeriodId,
                     IsAnonymous = model.IsAnonymous,
                     DateEvaluated = DateTime.Now,
                     Comments = model.Comments,
@@ -272,7 +310,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                 return Ok(new
                 {
                     success = true,
-                    data = new { evaluation.EvaluationId },
+                    data = new
+                    {
+                        evaluation.EvaluationId,
+                        Period = new
+                        {
+                            currentPeriod.PeriodName,
+                            currentPeriod.AcademicYear,
+                            currentPeriod.Semester
+                        }
+                    },
                     message = "Evaluation submitted successfully"
                 });
             }
@@ -306,10 +353,20 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     });
                 }
 
-                // Remove scores first
+                // STEP 1: Delete related ActivityLogs first
+                var relatedLogs = await _context.ActivityLog
+                    .Where(a => a.EvaluationId == id)
+                    .ToListAsync();
+
+                if (relatedLogs.Any())
+                {
+                    _context.ActivityLog.RemoveRange(relatedLogs);
+                }
+
+                // STEP 2: Remove scores
                 _context.Score.RemoveRange(evaluation.Scores);
 
-                // Remove evaluation
+                // STEP 3: Remove evaluation
                 _context.Evaluation.Remove(evaluation);
                 await _context.SaveChangesAsync();
 

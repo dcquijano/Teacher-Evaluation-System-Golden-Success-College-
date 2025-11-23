@@ -20,6 +20,7 @@ builder.Services.AddScoped<EmailService>();
 // ⭐ CRITICAL: Register Activity Log Service (REQUIRED for Activity Logging)
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+builder.Services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
 // Session
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>

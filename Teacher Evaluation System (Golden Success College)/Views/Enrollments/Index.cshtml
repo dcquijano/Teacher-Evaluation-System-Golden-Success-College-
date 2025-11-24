@@ -93,7 +93,7 @@
                         </select>
                         <small class="form-text text-muted">Hold Ctrl (Cmd on Mac) to select multiple subjects.</small>
                     </div>
-                    <div class="mb-3">
+                    @* <div class="mb-3">
                         <label for="TeacherId" class="form-label">Teacher</label>
                         <select class="form-select" id="TeacherId" name="TeacherId" required>
                             <option value="">-- Select Teacher --</option>
@@ -102,7 +102,7 @@
                                 <option value="@teacher.Value">@teacher.Text</option>
                             }
                         </select>
-                    </div>
+                    </div> *@
                 </form>
             </div>
             <div class="modal-footer">
@@ -137,9 +137,10 @@
             var toastEl = $('#toast');
             var toastMessage = $('#toastMessage');
             var loadingOverlay = $('#loadingOverlay');
+            var currentStudentLevelId = 0;
 
             function showToast(message, bgClass = 'bg-success') {
-                toastEl.removeClass('bg-success bg-danger bg-warning').addClass(bgClass);
+                toastEl.removeClass('bg-success bg-danger bg-warning bg-info').addClass(bgClass);
                 toastMessage.text(message);
                 var toast = new bootstrap.Toast(toastEl[0]);
                 toast.show();
@@ -156,16 +157,104 @@
                 "columnDefs": [{ "orderable": false, "targets": 3 }]
             });
 
+            // Handle student selection change - Load subjects based on student's level
+            $(document).on('change', '#StudentId', function () {
+                var studentId = $(this).val();
+
+                if (!studentId) {
+                    $('#SubjectId').html('<option value="">-- Select Subject --</option>');
+                    $('#SubjectIds').html('');
+                    $('#TeacherId').html('<option value="">-- Select Teacher --</option>');
+                    currentStudentLevelId = 0;
+                    return;
+                }
+
+                showLoading(true);
+
+                $.get(`/Enrollments/GetSubjectsByStudent?studentId=${studentId}`, function (response) {
+                    showLoading(false);
+
+                    if (response.success && response.data) {
+                        currentStudentLevelId = response.studentLevelId;
+                        var isCreateMode = !$('#EnrollmentId').val();
+
+                        if (isCreateMode) {
+                            // Multi-select for create mode
+                            var multiSelectHtml = '';
+                            response.data.forEach(function(subject) {
+                                multiSelectHtml += `<option value="${subject.subjectId}" data-teacher="${subject.teacherName}">
+                                    ${subject.subjectName} (Teacher: ${subject.teacherName})
+                                </option>`;
+                            });
+                            $('#SubjectIds').html(multiSelectHtml);
+                        } else {
+                            // Single select for edit mode
+                            var singleSelectHtml = '<option value="">-- Select Subject --</option>';
+                            response.data.forEach(function(subject) {
+                                singleSelectHtml += `<option value="${subject.subjectId}">
+                                    ${subject.subjectName} (Teacher: ${subject.teacherName})
+                                </option>`;
+                            });
+                            $('#SubjectId').html(singleSelectHtml);
+
+                            var selectedSubjectId = $('#SubjectId').data('selected');
+                            if (selectedSubjectId) {
+                                $('#SubjectId').val(selectedSubjectId);
+                            }
+                        }
+
+                        // Load teachers for this level using levelId
+                        loadTeachersByLevel(currentStudentLevelId);
+
+                        showToast(`Loaded ${response.data.length} ${response.studentLevel} subject(s)`, 'bg-info');
+                    } else {
+                        showToast('No subjects found for this student level', 'bg-warning');
+                        $('#SubjectId').html('<option value="">-- No Subjects Available --</option>');
+                        $('#SubjectIds').html('');
+                        $('#TeacherId').html('<option value="">-- No Teachers Available --</option>');
+                    }
+                }).fail(function() {
+                    showLoading(false);
+                    showToast('Failed to load subjects', 'bg-danger');
+                });
+            });
+
+            // Function to load teachers by levelId (NOT level name)
+            function loadTeachersByLevel(levelId) {
+                if (!levelId || levelId <= 0) return;
+
+                $.get(`/Enrollments/GetTeachersByLevel?levelId=${levelId}`, function (response) {
+                    if (response.success && response.data) {
+                        var teacherHtml = '<option value="">-- Select Teacher --</option>';
+                        response.data.forEach(function(teacher) {
+                            teacherHtml += `<option value="${teacher.teacherId}">
+                                ${teacher.teacherName}
+                            </option>`;
+                        });
+                        $('#TeacherId').html(teacherHtml);
+
+                        var selectedTeacherId = $('#TeacherId').data('selected');
+                        if (selectedTeacherId) {
+                            $('#TeacherId').val(selectedTeacherId);
+                        }
+                    } else {
+                        $('#TeacherId').html('<option value="">-- No Teachers Available --</option>');
+                    }
+                }).fail(function() {
+                    showToast('Failed to load teachers', 'bg-danger');
+                });
+            }
+
             // Open modal for create
             $('#btnCreateEnrollment').click(function () {
                 $('#enrollmentModalLabel').text('Create Enrollment');
                 $('#EnrollmentId').val('');
                 $('#StudentId').val('');
-                $('#SubjectId').val('');
-                $('#SubjectIds').val([]);
-                $('#TeacherId').val('');
+                $('#SubjectId').val('').removeData('selected');
+                $('#SubjectIds').html('');
+                $('#TeacherId').val('').removeData('selected');
+                currentStudentLevelId = 0;
 
-                // Show multi-select for create, single for edit
                 $('#subjectSelectContainer').hide();
                 $('#subjectMultiSelectContainer').show();
                 $('#SubjectId').removeAttr('required');
@@ -185,14 +274,16 @@
                         $('#enrollmentModalLabel').text('Edit Enrollment');
                         $('#EnrollmentId').val(res.data.enrollmentId);
                         $('#StudentId').val(res.data.studentId || '');
-                        $('#SubjectId').val(res.data.subjectId || '');
-                        $('#TeacherId').val(res.data.teacherId || '');
 
-                        // Show single select for edit
+                        $('#SubjectId').data('selected', res.data.subjectId || '');
+                        $('#TeacherId').data('selected', res.data.teacherId || '');
+
                         $('#subjectSelectContainer').show();
                         $('#subjectMultiSelectContainer').hide();
                         $('#SubjectId').attr('required', 'required');
                         $('#SubjectIds').removeAttr('required');
+
+                        $('#StudentId').trigger('change');
 
                         enrollmentModal.show();
                     } else {
@@ -208,14 +299,32 @@
             $('#saveEnrollmentBtn').click(function () {
                 var enrollmentId = $('#EnrollmentId').val();
                 var isEdit = enrollmentId && enrollmentId != '';
+                var studentId = $('#StudentId').val();
+
+                if (!studentId) {
+                    showToast('Please select a student', 'bg-warning');
+                    return;
+                }
 
                 if (isEdit) {
-                    // Edit mode - single enrollment
+                    var subjectId = $('#SubjectId').val();
+                    var teacherId = $('#TeacherId').val();
+
+                    if (!subjectId) {
+                        showToast('Please select a subject', 'bg-warning');
+                        return;
+                    }
+
+                    if (!teacherId) {
+                        showToast('Please select a teacher', 'bg-warning');
+                        return;
+                    }
+
                     var enrollmentData = {
                         enrollmentId: parseInt(enrollmentId),
-                        studentId: parseInt($('#StudentId').val()),
-                        subjectId: parseInt($('#SubjectId').val()),
-                        teacherId: parseInt($('#TeacherId').val())
+                        studentId: parseInt(studentId),
+                        subjectId: parseInt(subjectId),
+                        teacherId: parseInt(teacherId)
                     };
 
                     showLoading(true);
@@ -241,13 +350,16 @@
                                 showToast(res.message, 'bg-danger');
                             }
                         },
-                        error: function () {
+                        error: function (xhr) {
                             showLoading(false);
-                            showToast('Failed to save enrollement!', 'bg-danger');
+                            var errorMsg = 'Failed to save enrollment!';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMsg = xhr.responseJSON.message;
+                            }
+                            showToast(errorMsg, 'bg-danger');
                         }
                     });
                 } else {
-                    // Create mode - multiple enrollments
                     var subjectIds = $('#SubjectIds').val();
                     if (!subjectIds || subjectIds.length === 0) {
                         showToast('Please select at least one subject', 'bg-warning');
@@ -255,7 +367,7 @@
                     }
 
                     var enrollmentData = {
-                        studentId: parseInt($('#StudentId').val()),
+                        studentId: parseInt(studentId),
                         subjectIds: subjectIds.map(id => parseInt(id))
                     };
 
@@ -268,7 +380,6 @@
                         success: function (res) {
                             showLoading(false);
                             if (res.success) {
-                                // Add all new enrollments to table
                                 if (res.data && res.data.length > 0) {
                                     res.data.forEach(function(enrollment) {
                                         var newRow = table.row.add([
@@ -287,9 +398,13 @@
                                 showToast(res.message, 'bg-danger');
                             }
                         },
-                        error: function () {
+                        error: function (xhr) {
                             showLoading(false);
-                            showToast('Failed to save enrollment!', 'bg-danger');
+                            var errorMsg = 'Failed to save enrollment!';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMsg = xhr.responseJSON.message;
+                            }
+                            showToast(errorMsg, 'bg-danger');
                         }
                     });
                 }

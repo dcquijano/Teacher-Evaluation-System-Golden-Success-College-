@@ -1,0 +1,150 @@
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.Models.Student
+@{
+    ViewData["Title"] = "My Profile";
+    Layout = "_Layoutadmin";
+}
+
+<h2 class="mb-3">My Profile</h2>
+
+<div class="card p-4 shadow-sm">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="fw-bold">Full Name:</label>
+            <div>@Model.FullName</div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="fw-bold">Email:</label>
+            <div>@Model.Email</div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="fw-bold">Level:</label>
+            <div>@Model.Level?.LevelName</div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="fw-bold">Section:</label>
+            <div>@Model.Section?.SectionName</div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="fw-bold">College Year:</label>
+            <div>@(Model.CollegeYearLevel > 0 ? Model.CollegeYearLevel.ToString() : "N/A")</div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary mt-2 custom-btn-size" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+        Change Password
+    </button>
+
+
+</div>
+
+<!-- ==========================
+     CHANGE PASSWORD MODAL
+     ========================== -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Change Password</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" id="StudentId" value="@Model.StudentId" />
+
+                <div class="mb-3">
+                    <label>Current Password</label>
+                    <input type="password" id="CurrentPassword" class="form-control">
+                </div>
+
+                <div class="mb-3">
+                    <label>New Password</label>
+                    <input type="password" id="NewPassword" class="form-control">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-primary" onclick="changePassword()">Update</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==========================
+     TOAST NOTIFICATION
+     ========================== -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 1100">
+    <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-btn-size {
+        min-width: 45px;
+        min-height: 40px;
+        font-size: 16px;
+        padding: 6px 16px;
+    }
+
+</style>
+@section Scripts {
+    <script>
+        // Show toast message
+        function showToast(message, bgClass = 'bg-success') {
+            var toastEl = $('#toast');
+            var toastMessage = $('#toastMessage');
+
+            toastEl.removeClass('bg-success bg-danger bg-warning bg-info').addClass(bgClass);
+            toastMessage.text(message);
+
+            var toast = new bootstrap.Toast(toastEl[0], { delay: 3000 });
+            toast.show();
+        }
+
+        // AJAX Change Password
+        function changePassword() {
+            var id = $("#StudentId").val();
+            var currentPass = $("#CurrentPassword").val();
+            var newPass = $("#NewPassword").val();
+
+            $.post("/Account/ChangePassword",
+                {
+                    id: id,
+                    currentPassword: currentPass,
+                    newPassword: newPass
+                },
+                function (response) {
+                    if (response.success) {
+                        showToast(response.message, 'bg-success'); // success toast
+                        $("#changePasswordModal").modal('hide');
+                        setTimeout(function () {
+                            location.reload(); // reload after toast shows
+                        }, 1000);
+                    } else {
+                        showToast(response.message, 'bg-danger'); // error toast
+                    }
+                }
+            );
+        }
+
+        // Show server-side toast if TempData exists
+        $(function () {
+            @if (TempData["ToastMessage"] != null)
+            {
+                    var message = @Html.Raw(Json.Serialize(TempData["ToastMessage"]));
+                    var type = @Html.Raw(Json.Serialize(TempData["ToastType"] ?? "info")); // default to info
+                                                                                       <text>
+                                                                                           showToast(message, 'bg-' + type);
+                                                                                       </text>
+            }
+        });
+    </script>
+}

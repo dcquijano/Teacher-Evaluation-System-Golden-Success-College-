@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
@@ -12,7 +13,7 @@ using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 {
-    [Authorize(Roles = "Admin,Super Admin")]
+    [Authorize(Roles = "Admin,Super Admin,Student")]
     public class EnrollmentsController : Controller
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
@@ -25,51 +26,71 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         // GET: Enrollments
         public async Task<IActionResult> Index()
         {
-            var enrollments = await _context.Enrollment
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            ViewBag.UserRole = userRole;
+
+            // Build query based on role
+            var query = _context.Enrollment
                 .Include(e => e.Student)
                     .ThenInclude(s => s.Level)
                 .Include(e => e.Subject)
                     .ThenInclude(s => s.Level)
                 .Include(e => e.Teacher)
                     .ThenInclude(t => t.Level)
-                .ToListAsync();
+                .AsQueryable();
 
-            ViewBag.StudentId = new SelectList(await _context.Student.ToListAsync(), "StudentId", "FullName");
-            ViewBag.SubjectId = new SelectList(Enumerable.Empty<SelectListItem>());
-            ViewBag.TeacherId = new SelectList(Enumerable.Empty<SelectListItem>());
+            if (userRole == "Student")
+            {
+                ViewBag.CurrentStudentId = userId;
+                ViewBag.IsStudentUser = true;
+                query = query.Where(e => e.StudentId == userId);
+
+                // Only show current student in dropdown
+                var currentStudent = await _context.Student.FindAsync(userId);
+                ViewBag.StudentId = new SelectList(new[] { currentStudent }, "StudentId", "FullName", userId);
+            }
+            else
+            {
+                ViewBag.CurrentStudentId = null;
+                ViewBag.IsStudentUser = false;
+                ViewBag.StudentId = new SelectList(await _context.Student.ToListAsync(), "StudentId", "FullName");
+            }
+
+            var enrollments = await query.OrderBy(e => e.Student.FullName).ToListAsync();
+
+            // Subject list for reference
+            ViewBag.SubjectId = new SelectList(await _context.Subject.ToListAsync(), "SubjectId", "SubjectName");
 
             return View(enrollments);
         }
 
-        // GET: Enrollments/Details/5
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var enrollment = await _context.Enrollment
-                .Include(e => e.Student)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Subject)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Teacher)
-                    .ThenInclude(t => t.Level)
-                .FirstOrDefaultAsync(m => m.EnrollmentId == id);
-
-            if (enrollment == null)
-            {
-                return NotFound();
-            }
-
-            return View(enrollment);
-        }
-
         // GET: Enrollments/Create
-        public IActionResult Create()
+        public async Task<IActionResult> Create()
         {
-            ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName");
+            var userEmail = User.FindFirstValue(ClaimTypes.Name);
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            // If student, auto-select their account
+            if (userRole == "Student")
+            {
+                var currentStudent = await _context.Student
+                    .FirstOrDefaultAsync(s => s.Email == userEmail);
+
+                if (currentStudent != null)
+                {
+                    ViewBag.StudentId = new SelectList(new[] { currentStudent }, "StudentId", "FullName", currentStudent.StudentId);
+                    ViewBag.IsStudentUser = true;
+                    ViewBag.CurrentStudentId = currentStudent.StudentId;
+                }
+            }
+            else
+            {
+                ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName");
+                ViewBag.IsStudentUser = false;
+            }
+
             ViewBag.SubjectId = new SelectList(Enumerable.Empty<SelectListItem>());
             ViewBag.SubjectTeacher = new Dictionary<int, string>();
 
@@ -80,6 +101,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         [HttpGet]
         public async Task<IActionResult> GetSubjectsByStudent(int studentId)
         {
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            // Security: Students can only query their own subjects
+            if (userRole == "Student" && studentId != userId)
+            {
+                return Forbid();
+            }
+
             var student = await _context.Student
                 .Include(s => s.Level)
                 .FirstOrDefaultAsync(s => s.StudentId == studentId);
@@ -87,7 +117,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (student == null)
                 return Json(new { success = false, message = "Student not found" });
 
-            // Get subjects that match the student's level (by LevelId)
+            // Get subjects that match the student's level
             var subjects = await _context.Subject
                 .Include(s => s.Teacher)
                 .Include(s => s.Level)
@@ -138,6 +168,19 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(EnrollmentCreateViewModel model)
         {
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            // Security: Students can only enroll themselves
+            if (userRole == "Student")
+            {
+                if (model.StudentId != userId)
+                {
+                    TempData["Error"] = "You can only enroll yourself!";
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+
             if (ModelState.IsValid)
             {
                 var student = await _context.Student
@@ -147,7 +190,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 if (student == null)
                 {
                     ModelState.AddModelError("", "Student not found");
-                    ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName", model.StudentId);
+                    await PopulateViewBagForCreate(userRole, model.StudentId);
                     return View(model);
                 }
 
@@ -168,7 +211,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                         continue;
                     }
 
-                    // Security check: Ensure subject level matches student level (by LevelId)
+                    // Security: Ensure subject level matches student level
                     if (subject.LevelId != student.LevelId)
                     {
                         errors.Add($"Cannot enroll in '{subject.SubjectName}' - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
@@ -176,7 +219,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     }
 
                     // Prevent duplicate enrollment
-                    if (_context.Enrollment.Any(e => e.StudentId == model.StudentId && e.SubjectId == subjectId))
+                    if (await _context.Enrollment.AnyAsync(e => e.StudentId == model.StudentId && e.SubjectId == subjectId))
                     {
                         skippedCount++;
                         continue;
@@ -212,11 +255,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName", model.StudentId);
+            await PopulateViewBagForCreate(userRole, model.StudentId);
             return View(model);
         }
 
         // GET: Enrollments/Edit/5
+        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -257,6 +301,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // POST: Enrollments/Edit/5
+        [Authorize(Roles = "Admin,Super Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("EnrollmentId,StudentId,SubjectId,TeacherId")] Enrollment enrollment)
@@ -277,6 +322,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     if (student == null)
                     {
                         ModelState.AddModelError("", "Student not found");
+                        await PopulateViewDataForEdit(enrollment);
                         return View(enrollment);
                     }
 
@@ -287,25 +333,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     if (subject == null)
                     {
                         ModelState.AddModelError("", "Subject not found");
+                        await PopulateViewDataForEdit(enrollment);
                         return View(enrollment);
                     }
 
-                    // Verify subject level matches student level (by LevelId)
+                    // Verify subject level matches student level
                     if (subject.LevelId != student.LevelId)
                     {
                         ModelState.AddModelError("SubjectId", $"Cannot assign this subject - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
-
-                        var subjects = await _context.Subject
-                            .Where(s => s.LevelId == student.LevelId)
-                            .ToListAsync();
-                        ViewData["SubjectId"] = new SelectList(subjects, "SubjectId", "SubjectName", enrollment.SubjectId);
-                        ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
-
-                        var teachers = await _context.Teacher
-                            .Where(t => t.LevelId == student.LevelId)
-                            .ToListAsync();
-                        ViewData["TeacherId"] = new SelectList(teachers, "TeacherId", "FullName", enrollment.TeacherId);
-
+                        await PopulateViewDataForEdit(enrollment, student.LevelId);
                         return View(enrollment);
                     }
 
@@ -316,25 +352,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     if (teacher == null)
                     {
                         ModelState.AddModelError("", "Teacher not found");
+                        await PopulateViewDataForEdit(enrollment);
                         return View(enrollment);
                     }
 
-                    // Verify teacher level matches student level (by LevelId)
+                    // Verify teacher level matches student level
                     if (teacher.LevelId != student.LevelId)
                     {
                         ModelState.AddModelError("TeacherId", $"Cannot assign this teacher - they teach {teacher.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
-
-                        var subjects = await _context.Subject
-                            .Where(s => s.LevelId == student.LevelId)
-                            .ToListAsync();
-                        ViewData["SubjectId"] = new SelectList(subjects, "SubjectId", "SubjectName", enrollment.SubjectId);
-                        ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
-
-                        var teachers = await _context.Teacher
-                            .Where(t => t.LevelId == student.LevelId)
-                            .ToListAsync();
-                        ViewData["TeacherId"] = new SelectList(teachers, "TeacherId", "FullName", enrollment.TeacherId);
-
+                        await PopulateViewDataForEdit(enrollment, student.LevelId);
                         return View(enrollment);
                     }
 
@@ -347,18 +373,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     if (duplicateExists)
                     {
                         ModelState.AddModelError("", "This student is already enrolled in this subject");
-
-                        var subjects = await _context.Subject
-                            .Where(s => s.LevelId == student.LevelId)
-                            .ToListAsync();
-                        ViewData["SubjectId"] = new SelectList(subjects, "SubjectId", "SubjectName", enrollment.SubjectId);
-                        ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
-
-                        var teachers = await _context.Teacher
-                            .Where(t => t.LevelId == student.LevelId)
-                            .ToListAsync();
-                        ViewData["TeacherId"] = new SelectList(teachers, "TeacherId", "FullName", enrollment.TeacherId);
-
+                        await PopulateViewDataForEdit(enrollment, student.LevelId);
                         return View(enrollment);
                     }
 
@@ -380,14 +395,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
-            ViewData["SubjectId"] = new SelectList(_context.Subject, "SubjectId", "SubjectName", enrollment.SubjectId);
-            ViewData["TeacherId"] = new SelectList(_context.Teacher, "TeacherId", "FullName", enrollment.TeacherId);
-
+            await PopulateViewDataForEdit(enrollment);
             return View(enrollment);
         }
 
         // GET: Enrollments/Delete/5
+        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -413,6 +426,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // POST: Enrollments/Delete/5
+        [Authorize(Roles = "Admin,Super Admin")]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -435,6 +449,50 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         private bool EnrollmentExists(int id)
         {
             return _context.Enrollment.Any(e => e.EnrollmentId == id);
+        }
+
+        // Helper methods
+        private async Task PopulateViewBagForCreate(string userRole, int? studentId = null)
+        {
+            if (userRole == "Student")
+            {
+                var currentStudent = await _context.Student.FindAsync(studentId);
+                if (currentStudent != null)
+                {
+                    ViewBag.StudentId = new SelectList(new[] { currentStudent }, "StudentId", "FullName", currentStudent.StudentId);
+                    ViewBag.IsStudentUser = true;
+                }
+            }
+            else
+            {
+                ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName", studentId);
+                ViewBag.IsStudentUser = false;
+            }
+
+            ViewBag.SubjectId = new SelectList(Enumerable.Empty<SelectListItem>());
+        }
+
+        private async Task PopulateViewDataForEdit(Enrollment enrollment, int? levelId = null)
+        {
+            ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
+
+            if (levelId.HasValue)
+            {
+                var subjects = await _context.Subject
+                    .Where(s => s.LevelId == levelId)
+                    .ToListAsync();
+                ViewData["SubjectId"] = new SelectList(subjects, "SubjectId", "SubjectName", enrollment.SubjectId);
+
+                var teachers = await _context.Teacher
+                    .Where(t => t.LevelId == levelId)
+                    .ToListAsync();
+                ViewData["TeacherId"] = new SelectList(teachers, "TeacherId", "FullName", enrollment.TeacherId);
+            }
+            else
+            {
+                ViewData["SubjectId"] = new SelectList(_context.Subject, "SubjectId", "SubjectName", enrollment.SubjectId);
+                ViewData["TeacherId"] = new SelectList(_context.Teacher, "TeacherId", "FullName", enrollment.TeacherId);
+            }
         }
     }
 }

@@ -1,16 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
 using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Admin,Super Admin,Student")]
     public class EnrollmentsApiController : ControllerBase
     {
         private readonly Teacher_Evaluation_System__Golden_Success_College_Context _context;
@@ -24,14 +27,26 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
         [HttpGet]
         public async Task<IActionResult> GetEnrollments()
         {
-            var enrollments = await _context.Enrollment
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { success = false, message = "User not authenticated" });
+
+            var query = _context.Enrollment
                 .Include(e => e.Student)
-                    .ThenInclude(s => s.Level)
                 .Include(e => e.Subject)
-                    .ThenInclude(s => s.Level)
                 .Include(e => e.Teacher)
-                    .ThenInclude(t => t.Level)
-                .ToListAsync();
+                .AsQueryable();
+
+            // Students can only see their own enrollments
+            if (userRole == "Student")
+            {
+                var studentId = int.Parse(userId);
+                query = query.Where(e => e.StudentId == studentId);
+            }
+
+            var enrollments = await query.ToListAsync();
 
             var data = enrollments.Select(e => new
             {
@@ -41,33 +56,38 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                 subjectId = e.SubjectId,
                 subjectName = e.Subject?.SubjectName,
                 teacherId = e.TeacherId,
-                teacherName = e.Teacher?.FullName,
-                studentLevel = e.Student?.Level?.LevelName ?? "",
-                subjectLevel = e.Subject?.Level?.LevelName ?? ""
+                teacherName = e.Teacher?.FullName
             });
 
-            return Ok(new
-            {
-                success = true,
-                data = data
-            });
+            return Ok(new { success = true, data });
         }
 
         // GET: api/EnrollmentsApi/5
         [HttpGet("{id}")]
         public async Task<IActionResult> GetEnrollment(int id)
         {
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { success = false, message = "User not authenticated" });
+
             var enrollment = await _context.Enrollment
-                .Include(e => e.Student)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Subject)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Teacher)
-                    .ThenInclude(t => t.Level)
-                .FirstOrDefaultAsync(e => e.EnrollmentId == id);
+                .Include(x => x.Student)
+                .Include(x => x.Subject)
+                .Include(x => x.Teacher)
+                .FirstOrDefaultAsync(x => x.EnrollmentId == id);
 
             if (enrollment == null)
                 return NotFound(new { success = false, message = "Enrollment not found" });
+
+            // Students can only view their own enrollments
+            if (userRole == "Student")
+            {
+                var studentId = int.Parse(userId);
+                if (enrollment.StudentId != studentId)
+                    return Forbid();
+            }
 
             return Ok(new
             {
@@ -76,71 +96,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                 {
                     enrollmentId = enrollment.EnrollmentId,
                     studentId = enrollment.StudentId,
-                    studentName = enrollment.Student?.FullName,
-                    studentLevel = enrollment.Student?.Level?.LevelName ?? "",
                     subjectId = enrollment.SubjectId,
-                    subjectName = enrollment.Subject?.SubjectName,
-                    subjectLevel = enrollment.Subject?.Level?.LevelName ?? "",
-                    teacherId = enrollment.TeacherId,
-                    teacherName = enrollment.Teacher?.FullName,
-                    teacherLevel = enrollment.Teacher?.Level?.LevelName ?? ""
+                    teacherId = enrollment.TeacherId
                 }
             });
-        }
-
-        // GET: api/EnrollmentsApi/subjects-by-student/{studentId}
-        [HttpGet("subjects-by-student/{studentId}")]
-        public async Task<IActionResult> GetSubjectsByStudent(int studentId)
-        {
-            var student = await _context.Student
-                .Include(s => s.Level)
-                .FirstOrDefaultAsync(s => s.StudentId == studentId);
-
-            if (student == null)
-                return NotFound(new { success = false, message = "Student not found" });
-
-            // Get subjects that match the student's level (by LevelId)
-            var subjects = await _context.Subject
-                .Include(s => s.Teacher)
-                .Include(s => s.Level)
-                .Where(s => s.LevelId == student.LevelId)
-                .Select(s => new
-                {
-                    subjectId = s.SubjectId,
-                    subjectName = s.SubjectName,
-                    teacherId = s.TeacherId,
-                    teacherName = s.Teacher != null ? s.Teacher.FullName : "No Teacher Assigned",
-                    level = s.Level != null ? s.Level.LevelName : ""
-                })
-                .ToListAsync();
-
-            return Ok(new
-            {
-                success = true,
-                data = subjects,
-                studentLevel = student.Level?.LevelName ?? ""
-            });
-        }
-
-        // GET: api/EnrollmentsApi/teachers-by-level/{levelId}
-        [HttpGet("teachers-by-level/{levelId}")]
-        public async Task<IActionResult> GetTeachersByLevel(int levelId)
-        {
-            if (levelId <= 0)
-                return BadRequest(new { success = false, message = "Level ID is required" });
-
-            var teachers = await _context.Teacher
-                .Include(t => t.Level)
-                .Where(t => t.LevelId == levelId)
-                .Select(t => new
-                {
-                    teacherId = t.TeacherId,
-                    teacherName = t.FullName,
-                    level = t.Level != null ? t.Level.LevelName : ""
-                })
-                .ToListAsync();
-
-            return Ok(new { success = true, data = teachers });
         }
 
         // POST: api/EnrollmentsApi
@@ -148,9 +107,24 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
         public async Task<IActionResult> PostEnrollment([FromBody] EnrollmentCreateViewModel model)
         {
             if (!ModelState.IsValid)
-                return BadRequest(new { success = false, message = "Invalid data" });
+                return BadRequest(new { success = false, message = "Invalid data", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            // Verify student exists and get their level
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { success = false, message = "User not authenticated" });
+
+            // Security: Students can only enroll themselves
+            if (userRole == "Student")
+            {
+                var studentId = int.Parse(userId);
+                if (model.StudentId != studentId)
+                {
+                    return StatusCode(403, new { success = false, message = "You can only enroll yourself" });
+                }
+            }
+
             var student = await _context.Student
                 .Include(s => s.Level)
                 .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
@@ -162,97 +136,95 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             var errors = new List<string>();
             var skippedCount = 0;
 
-            foreach (var subjectId in model.SubjectIds)
+            foreach (var subId in model.SubjectIds)
             {
                 var subject = await _context.Subject
                     .Include(s => s.Level)
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.SubjectId == subjectId);
+                    .FirstOrDefaultAsync(s => s.SubjectId == subId);
 
+                // Subject not found
                 if (subject == null)
                 {
-                    errors.Add($"Subject ID {subjectId} not found");
+                    errors.Add($"Subject with ID {subId} not found.");
                     continue;
                 }
 
-                // CRITICAL: Verify subject level matches student level (by LevelId)
-                if (subject.LevelId != student.LevelId)
-                {
-                    errors.Add($"Cannot enroll in '{subject.SubjectName}' - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
-                    continue;
-                }
-
-                // Prevent duplicate enrollment
-                if (_context.Enrollment.Any(e => e.StudentId == model.StudentId && e.SubjectId == subjectId))
+                // Duplicate enrollment
+                if (await _context.Enrollment.AnyAsync(e => e.StudentId == model.StudentId && e.SubjectId == subId))
                 {
                     skippedCount++;
+                    errors.Add($"Already enrolled in {subject.SubjectName}.");
                     continue;
                 }
 
-                var enrollment = new Enrollment
+                // Level mismatch
+                if (subject.LevelId != student.LevelId)
+                {
+                    errors.Add($"Cannot enroll in '{subject.SubjectName}' - level mismatch (Subject: {subject.Level?.LevelName}, Student: {student.Level?.LevelName})");
+                    continue;
+                }
+
+                // Missing teacher
+                if (subject.TeacherId <= 0)
+                {
+                    errors.Add($"Subject '{subject.SubjectName}' has no assigned teacher.");
+                    continue;
+                }
+
+                // Add valid enrollment
+                createdEnrollments.Add(new Enrollment
                 {
                     StudentId = model.StudentId,
-                    SubjectId = subjectId,
+                    SubjectId = subId,
                     TeacherId = subject.TeacherId
-                };
-
-                _context.Enrollment.Add(enrollment);
-                createdEnrollments.Add(enrollment);
+                });
             }
 
-            if (createdEnrollments.Count == 0)
+
+            if (!createdEnrollments.Any())
             {
-                var message = errors.Any() ? string.Join("; ", errors) : "No subjects were enrolled (may already be enrolled)";
-                return BadRequest(new { success = false, message = message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "No subjects enrolled",
+                    errors = errors.Any() ? errors : new List<string> { "All subjects were already enrolled or invalid" }
+                });
             }
 
+            _context.Enrollment.AddRange(createdEnrollments);
             await _context.SaveChangesAsync();
 
-            // Reload entities to get navigation properties
-            foreach (var e in createdEnrollments)
-            {
-                await _context.Entry(e).Reference(x => x.Student).LoadAsync();
-                await _context.Entry(e).Reference(x => x.Subject).LoadAsync();
-                await _context.Entry(e).Reference(x => x.Teacher).LoadAsync();
-            }
-
-            var data = createdEnrollments.Select(e => new
-            {
-                enrollmentId = e.EnrollmentId,
-                studentId = e.StudentId,
-                studentName = e.Student?.FullName,
-                subjectId = e.SubjectId,
-                subjectName = e.Subject?.SubjectName,
-                teacherId = e.TeacherId,
-                teacherName = e.Teacher?.FullName
-            });
-
-            var successMessage = $"Successfully enrolled in {createdEnrollments.Count} subject(s)";
+            var responseMessage = $"Successfully enrolled in {createdEnrollments.Count} subject(s)";
             if (skippedCount > 0)
-                successMessage += $" ({skippedCount} already enrolled)";
-            if (errors.Any())
-                successMessage += $". Warnings: {string.Join("; ", errors)}";
+                responseMessage += $" ({skippedCount} skipped)";
 
             return Ok(new
             {
                 success = true,
-                message = successMessage,
-                data = data
+                message = responseMessage,
+                enrolledCount = createdEnrollments.Count,
+                skippedCount = skippedCount,
+                errors = errors.Any() ? errors : null
             });
         }
 
         // PUT: api/EnrollmentsApi/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> PutEnrollment(int id, [FromBody] Enrollment enrollment)
         {
             if (id != enrollment.EnrollmentId)
                 return BadRequest(new { success = false, message = "Enrollment ID mismatch" });
 
-            var existing = await _context.Enrollment.FindAsync(id);
+            var existing = await _context.Enrollment
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.Level)
+                .FirstOrDefaultAsync(e => e.EnrollmentId == id);
+
             if (existing == null)
                 return NotFound(new { success = false, message = "Enrollment not found" });
 
-            // Get student to check level
+            // Validate student exists
             var student = await _context.Student
                 .Include(s => s.Level)
                 .FirstOrDefaultAsync(s => s.StudentId == enrollment.StudentId);
@@ -260,7 +232,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             if (student == null)
                 return BadRequest(new { success = false, message = "Student not found" });
 
-            // Get subject to check level
+            // Validate subject exists and level matches
             var subject = await _context.Subject
                 .Include(s => s.Level)
                 .FirstOrDefaultAsync(s => s.SubjectId == enrollment.SubjectId);
@@ -268,17 +240,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             if (subject == null)
                 return BadRequest(new { success = false, message = "Subject not found" });
 
-            // Verify subject level matches student level (by LevelId)
             if (subject.LevelId != student.LevelId)
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = $"Cannot assign this subject - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}"
+                    message = $"Level mismatch - Subject is for {subject.Level?.LevelName}, but student is in {student.Level?.LevelName}"
                 });
             }
 
-            // Get teacher to check level
+            // Validate teacher exists and level matches
             var teacher = await _context.Teacher
                 .Include(t => t.Level)
                 .FirstOrDefaultAsync(t => t.TeacherId == enrollment.TeacherId);
@@ -286,17 +257,16 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             if (teacher == null)
                 return BadRequest(new { success = false, message = "Teacher not found" });
 
-            // Verify teacher level matches student level (by LevelId)
             if (teacher.LevelId != student.LevelId)
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = $"Cannot assign this teacher - they teach {teacher.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}"
+                    message = $"Level mismatch - Teacher teaches {teacher.Level?.LevelName}, but student is in {student.Level?.LevelName}"
                 });
             }
 
-            // Check for duplicate enrollment (excluding current record)
+            // Check for duplicate (excluding current record)
             var duplicateExists = await _context.Enrollment
                 .AnyAsync(e => e.StudentId == enrollment.StudentId
                             && e.SubjectId == enrollment.SubjectId
@@ -304,9 +274,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
 
             if (duplicateExists)
             {
-                return BadRequest(new { success = false, message = "This student is already enrolled in this subject" });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "This student is already enrolled in this subject"
+                });
             }
 
+            // Update enrollment
             existing.StudentId = enrollment.StudentId;
             existing.SubjectId = enrollment.SubjectId;
             existing.TeacherId = enrollment.TeacherId;
@@ -320,56 +295,30 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
             catch (DbUpdateConcurrencyException)
             {
                 if (!EnrollmentExists(id))
-                {
-                    return NotFound(new { success = false, message = "Enrollment not found" });
-                }
+                    return NotFound(new { success = false, message = "Enrollment no longer exists" });
                 else
-                {
                     throw;
-                }
             }
 
-            // Load navigation properties
-            await _context.Entry(existing).Reference(x => x.Student).LoadAsync();
-            await _context.Entry(existing).Reference(x => x.Subject).LoadAsync();
-            await _context.Entry(existing).Reference(x => x.Teacher).LoadAsync();
-
-            return Ok(new
-            {
-                success = true,
-                message = "Enrollment updated successfully",
-                data = new
-                {
-                    enrollmentId = existing.EnrollmentId,
-                    studentId = existing.StudentId,
-                    studentName = existing.Student?.FullName,
-                    subjectId = existing.SubjectId,
-                    subjectName = existing.Subject?.SubjectName,
-                    teacherId = existing.TeacherId,
-                    teacherName = existing.Teacher?.FullName
-                }
-            });
+            return Ok(new { success = true, message = "Enrollment updated successfully" });
         }
 
         // DELETE: api/EnrollmentsApi/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,Super Admin")]
         public async Task<IActionResult> DeleteEnrollment(int id)
         {
             var enrollment = await _context.Enrollment.FindAsync(id);
+
             if (enrollment == null)
                 return NotFound(new { success = false, message = "Enrollment not found" });
 
             _context.Enrollment.Remove(enrollment);
             await _context.SaveChangesAsync();
 
-            return Ok(new
-            {
-                success = true,
-                message = "Enrollment deleted successfully"
-            });
+            return Ok(new { success = true, message = "Enrollment deleted successfully" });
         }
 
-        // Helper method to check if enrollment exists
         private bool EnrollmentExists(int id)
         {
             return _context.Enrollment.Any(e => e.EnrollmentId == id);

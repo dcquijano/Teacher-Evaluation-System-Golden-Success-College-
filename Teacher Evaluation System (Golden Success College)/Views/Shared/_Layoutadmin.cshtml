@@ -63,12 +63,15 @@
                     <li><a asp-controller="Teachers" asp-action="Index"><i class='bx bx-chalkboard'></i><span class="links_name">Teachers</span></a></li>
                     <li><a asp-controller="Criteria" asp-action="Index"><i class='bx bx-task'></i><span class="links_name">Criteria</span></a></li>
                     <li><a asp-controller="Questions" asp-action="Index"><i class='bx bx-question-mark'></i><span class="links_name">Questions</span></a></li>
+                    <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
+
                     <li><a asp-controller="Logs" asp-action="Index"><i class='bx bx-list-ul'></i><span class="links_name">Activity Logs</span></a></li>
                 }
                 @if (isStudent)
                 {
-
+                    <li><a asp-controller="Enrollments" asp-action="Index"><i class='bx bx-list-plus'></i><span class="links_name">Enrollments</span></a></li>
                     <li><a asp-controller="TeacherEvaluations" asp-action="Index"><i class='bx bx-clipboard'></i><span class="links_name">Teacher Evaluations</span></a></li>
+                    <li><a asp-controller="Account" asp-action="Profile"><i class='bx bx-task'></i><span class="links_name">Profile</span></a></li>
                 }
             </ul>
             <!-- Profile section outside nav-list -->

@@ -5,7 +5,7 @@
 namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 {
     /// <inheritdoc />
-    public partial class UpdateActivityLogRelationships : Migration
+    public partial class evaluationsystemgoldensuccess : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

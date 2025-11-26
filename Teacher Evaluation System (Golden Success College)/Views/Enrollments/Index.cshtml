@@ -114,9 +114,9 @@
 
 <!-- Modal: Create/Edit Enrollment -->
 <div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-white text-black">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="enrollmentModalLabel">Create Enrollment</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -179,7 +179,8 @@
                     <i class="bi bi-x-circle"></i> Close
                 </button>
                 <button type="button" class="btn btn-primary" id="saveEnrollmentBtn">
-                    <i class="bi bi-check-circle"></i> Save
+                    <i class="bi bi-check-circle"></i> Save Enrollment
+                </button>
             </div>
         </div>
     </div>
@@ -271,12 +272,17 @@
             });
 
             // Function to load subjects for a student
-            function loadSubjectsForStudent(studentId) {
+            function loadSubjectsForStudent(studentId, excludeEnrollmentId = null) {
+                var url = `/Enrollments/GetSubjectsByStudent?studentId=${studentId}`;
+                if (excludeEnrollmentId) {
+                    url += `&excludeEnrollmentId=${excludeEnrollmentId}`;
+                }
+
                 $.ajax({
-                    url: `/Enrollments/GetSubjectsByStudent?studentId=${studentId}`,
+                    url: url,
                     method: 'GET',
                     beforeSend: function() {
-                        if (isStudentUser) {
+                        if (isStudentUser || excludeEnrollmentId) {
                             $('#SubjectId').html('<option value="">-- Loading... --</option>');
                         } else {
                             $('#SubjectIds').html('<option disabled>-- Loading... --</option>');
@@ -284,28 +290,44 @@
                     },
                     success: function (res) {
                         if (res.success) {
-                            if (res.data.length === 0) {
-                                showToast('No subjects available for this student\'s level', 'bg-warning');
-                                $('#SubjectId').html('<option value="">-- No subjects available --</option>');
-                                $('#SubjectIds').html('<option disabled>-- No subjects available --</option>');
+                            // Filter only available (non-enrolled) subjects
+                            var availableSubjects = res.data.filter(s => !s.isEnrolled);
+
+                            if (availableSubjects.length === 0) {
+                                var message = 'No available subjects';
+                                if (res.enrolledCount > 0) {
+                                    message += ` (already enrolled in ${res.enrolledCount} subject${res.enrolledCount > 1 ? 's' : ''})`;
+                                }
+                                showToast(message, 'bg-info');
+                                $('#SubjectId').html('<option value="">-- All subjects enrolled --</option>');
+                                $('#SubjectIds').html('<option disabled>-- All subjects enrolled --</option>');
+
+                                if (res.studentLevel) {
+                                    $('#levelInfoText').text(`${res.studentLevel} - Already enrolled in all available subjects`);
+                                    $('#levelInfo').removeClass('alert-info').addClass('alert-warning').fadeIn();
+                                }
                                 return;
                             }
 
-                            // Show level info
+                            // Show level info with available count
                             if (res.studentLevel) {
-                                $('#levelInfoText').text(`Showing subjects for: ${res.studentLevel}`);
-                                $('#levelInfo').fadeIn();
+                                var infoText = `${res.studentLevel} - ${availableSubjects.length} available subject${availableSubjects.length > 1 ? 's' : ''}`;
+                                if (res.enrolledCount > 0) {
+                                    infoText += ` (${res.enrolledCount} already enrolled)`;
+                                }
+                                $('#levelInfoText').text(infoText);
+                                $('#levelInfo').removeClass('alert-warning').addClass('alert-info').fadeIn();
                             }
 
-                            if (isStudentUser) {
+                            if (isStudentUser || excludeEnrollmentId) {
                                 var html = '<option value="">-- Select Subject --</option>';
-                                res.data.forEach(s => {
+                                availableSubjects.forEach(s => {
                                     html += `<option value="${s.subjectId}">${s.subjectName} (${s.teacherName})</option>`;
                                 });
                                 $('#SubjectId').html(html);
                             } else {
                                 var html = '';
-                                res.data.forEach(s => {
+                                availableSubjects.forEach(s => {
                                     html += `<option value="${s.subjectId}">${s.subjectName} (${s.teacherName})</option>`;
                                 });
                                 $('#SubjectIds').html(html);
@@ -325,7 +347,7 @@
                 });
             }
 
-            // Edit Enrollment
+            // Edit Enrollment - THIS IS WHERE THE CODE GOES!
             $(document).on('click', '.btn-edit', function () {
                 var id = $(this).data('id');
                 loadingOverlay.show();
@@ -340,22 +362,47 @@
                             $('#EnrollmentId').val(res.data.enrollmentId);
                             $('#StudentId').val(res.data.studentId).prop('disabled', true);
 
-                            // Load subjects for the student
+                            // Load ALL subjects for the student (including enrolled) for edit mode
                             $.ajax({
-                                url: `/Enrollments/GetSubjectsByStudent?studentId=${res.data.studentId}`,
+                                url: `/Enrollments/GetSubjectsByStudent?studentId=${res.data.studentId}&excludeEnrollmentId=${res.data.enrollmentId}&showEnrolled=true`,
                                 method: 'GET',
                                 success: function (subjects) {
                                     if (subjects.success) {
-                                        var html = '<option value="">-- Select Subject --</option>';
+                                        var html = '';
+                                        var currentSubjectFound = false;
+
+                                        // THIS IS WHERE YOUR CODE GOES - Loop through subjects and add labels
                                         subjects.data.forEach(s => {
                                             var selected = s.subjectId == res.data.subjectId ? 'selected' : '';
-                                            html += `<option value="${s.subjectId}" ${selected}>${s.subjectName} (${s.teacherName})</option>`;
+                                            var enrolledTag = '';
+
+                                            // ⭐ YOUR CODE IS HERE ⭐
+                                            // Mark as current or already enrolled
+                                            if (s.subjectId == res.data.subjectId) {
+                                                enrolledTag = ' (Current)';  // The subject being edited
+                                                currentSubjectFound = true;
+                                            } else if (s.isEnrolled) {
+                                                enrolledTag = ' (Already Enrolled)';  // Other enrolled subjects
+                                            }
+                                            // No tag = Available subject
+
+                                            html += `<option value="${s.subjectId}" ${selected}>${s.subjectName} (${s.teacherName})${enrolledTag}</option>`;
                                         });
+
+                                        if (subjects.data.length === 0) {
+                                            html = '<option value="">No subjects available</option>';
+                                        }
+
                                         $('#SubjectId').html(html);
 
                                         if (subjects.studentLevel) {
-                                            $('#levelInfoText').text(`Editing enrollment for: ${subjects.studentLevel}`);
-                                            $('#levelInfo').fadeIn();
+                                            var availableCount = subjects.data.filter(s => !s.isEnrolled).length;
+                                            var infoText = `${subjects.studentLevel} - ${availableCount} available`;
+                                            if (subjects.enrolledCount > 0) {
+                                                infoText += `, ${subjects.enrolledCount} enrolled`;
+                                            }
+                                            $('#levelInfoText').text(infoText);
+                                            $('#levelInfo').removeClass('alert-warning').addClass('alert-info').fadeIn();
                                         }
                                     }
 
@@ -367,6 +414,7 @@
                                     enrollmentModal.show();
                                 },
                                 error: function() {
+                                    loadingOverlay.hide();
                                     showToast('Failed to load subjects for editing', 'bg-danger');
                                 }
                             });

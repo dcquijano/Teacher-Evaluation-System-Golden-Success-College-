@@ -12,8 +12,8 @@ using Teacher_Evaluation_System__Golden_Success_College_.Data;
 namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 {
     [DbContext(typeof(Teacher_Evaluation_System__Golden_Success_College_Context))]
-    [Migration("20251122141242_logs")]
-    partial class logs
+    [Migration("20251125135954_evaluationsystem")]
+    partial class evaluationsystem
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -133,6 +133,18 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     b.HasKey("CriteriaId");
 
                     b.ToTable("Criteria");
+
+                    b.HasData(
+                        new
+                        {
+                            CriteriaId = 1,
+                            Name = "A. TEACHER ACTIONS (Teaching Practices)"
+                        },
+                        new
+                        {
+                            CriteriaId = 2,
+                            Name = "B. TEACHER-STUDENT INTERACTION"
+                        });
                 });
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Enrollment", b =>
@@ -178,6 +190,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     b.Property<DateTime>("DateEvaluated")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("EvaluationPeriodId")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsAnonymous")
                         .HasColumnType("bit");
 
@@ -192,6 +207,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 
                     b.HasKey("EvaluationId");
 
+                    b.HasIndex("EvaluationPeriodId");
+
                     b.HasIndex("StudentId");
 
                     b.HasIndex("SubjectId");
@@ -199,6 +216,59 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     b.HasIndex("TeacherId");
 
                     b.ToTable("Evaluation");
+                });
+
+            modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.EvaluationPeriod", b =>
+                {
+                    b.Property<int>("EvaluationPeriodId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EvaluationPeriodId"));
+
+                    b.Property<string>("AcademicYear")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsCurrent")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PeriodName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Semester")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("EvaluationPeriodId");
+
+                    b.HasIndex("IsCurrent");
+
+                    b.HasIndex("AcademicYear", "Semester");
+
+                    b.ToTable("EvaluationPeriod");
                 });
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Level", b =>
@@ -242,6 +312,98 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     b.HasIndex("CriteriaId");
 
                     b.ToTable("Question");
+
+                    b.HasData(
+                        new
+                        {
+                            QuestionId = 1,
+                            CriteriaId = 1,
+                            Description = "My teacher clearly explains the lesson and learning goals."
+                        },
+                        new
+                        {
+                            QuestionId = 2,
+                            CriteriaId = 1,
+                            Description = "My teacher uses examples, activities, and materials that make the lesson easier to understand."
+                        },
+                        new
+                        {
+                            QuestionId = 3,
+                            CriteriaId = 1,
+                            Description = "My teacher checks if students understand the lesson (through questions, activities, or assessments)."
+                        },
+                        new
+                        {
+                            QuestionId = 4,
+                            CriteriaId = 1,
+                            Description = "My teacher gives feedback, advice, or help when students find it difficult to learn."
+                        },
+                        new
+                        {
+                            QuestionId = 5,
+                            CriteriaId = 1,
+                            Description = "My teacher manages the class well (time, rules, order) so learning is not disturbed."
+                        },
+                        new
+                        {
+                            QuestionId = 6,
+                            CriteriaId = 1,
+                            Description = "My teacher asks questions that make students think more deeply or critically."
+                        },
+                        new
+                        {
+                            QuestionId = 7,
+                            CriteriaId = 2,
+                            Description = "My teacher encourages us to be active and engaged in learning tasks."
+                        },
+                        new
+                        {
+                            QuestionId = 8,
+                            CriteriaId = 2,
+                            Description = "My teacher guides us in using different learning materials and technology to achieve our goals."
+                        },
+                        new
+                        {
+                            QuestionId = 9,
+                            CriteriaId = 2,
+                            Description = "My teacher motivates us to share ideas, reflections, or solutions to real-life challenges."
+                        },
+                        new
+                        {
+                            QuestionId = 10,
+                            CriteriaId = 2,
+                            Description = "My teacher promotes collaboration and meaningful interactions among students."
+                        },
+                        new
+                        {
+                            QuestionId = 11,
+                            CriteriaId = 2,
+                            Description = "My teacher helps us explain and understand how our work relates to learning goals."
+                        },
+                        new
+                        {
+                            QuestionId = 12,
+                            CriteriaId = 2,
+                            Description = "My teacher encourages us to ask questions to clarify or deepen our understanding."
+                        },
+                        new
+                        {
+                            QuestionId = 13,
+                            CriteriaId = 2,
+                            Description = "My teacher helps us connect our lessons to daily life and real-world situations."
+                        },
+                        new
+                        {
+                            QuestionId = 14,
+                            CriteriaId = 2,
+                            Description = "My teacher integrates 21st century skills (communication, collaboration, critical thinking, creativity) into lessons."
+                        },
+                        new
+                        {
+                            QuestionId = 15,
+                            CriteriaId = 2,
+                            Description = "My teacher connects our learning with the school’s PVMGO (Philosophy, Vision, Mission, Goals, and Objectives)."
+                        });
                 });
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Role", b =>
@@ -259,6 +421,23 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     b.HasKey("RoleId");
 
                     b.ToTable("Role");
+
+                    b.HasData(
+                        new
+                        {
+                            RoleId = 1,
+                            Name = "Super Admin"
+                        },
+                        new
+                        {
+                            RoleId = 2,
+                            Name = "Admin"
+                        },
+                        new
+                        {
+                            RoleId = 3,
+                            Name = "Student"
+                        });
                 });
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Score", b =>
@@ -451,29 +630,52 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("User");
+
+                    b.HasData(
+                        new
+                        {
+                            UserId = 1,
+                            Email = "ninojusay1@gmail.com",
+                            FullName = "Default Super Admin",
+                            Password = "$2a$11$Rt6X48PJIuf8Jle1G9.3HuA5YMAGqPF7vzH0WXDKw6k3mlE/eEwom",
+                            RoleId = 1
+                        },
+                        new
+                        {
+                            UserId = 2,
+                            Email = "admin@example.com",
+                            FullName = "Default Admin",
+                            Password = "$2a$11$IrZAi0zl2U/hkgbRMindxO2d9HlitG0j08IbrJCv4IFuiK5TqaHiq",
+                            RoleId = 2
+                        });
                 });
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.ActivityLog", b =>
                 {
                     b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.Evaluation", "Evaluation")
                         .WithMany()
-                        .HasForeignKey("EvaluationId");
+                        .HasForeignKey("EvaluationId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.Student", "Student")
                         .WithMany()
-                        .HasForeignKey("StudentId");
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.Subject", "Subject")
                         .WithMany()
-                        .HasForeignKey("SubjectId");
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.Teacher", "Teacher")
                         .WithMany()
-                        .HasForeignKey("TeacherId");
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.User", "User")
                         .WithMany()
-                        .HasForeignKey("UserId");
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Evaluation");
 
@@ -515,6 +717,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Evaluation", b =>
                 {
+                    b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.EvaluationPeriod", "EvaluationPeriod")
+                        .WithMany("Evaluations")
+                        .HasForeignKey("EvaluationPeriodId");
+
                     b.HasOne("Teacher_Evaluation_System__Golden_Success_College_.Models.Student", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
@@ -532,6 +738,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("EvaluationPeriod");
 
                     b.Navigation("Student");
 
@@ -658,6 +866,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Evaluation", b =>
                 {
                     b.Navigation("Scores");
+                });
+
+            modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.EvaluationPeriod", b =>
+                {
+                    b.Navigation("Evaluations");
                 });
 
             modelBuilder.Entity("Teacher_Evaluation_System__Golden_Success_College_.Models.Level", b =>

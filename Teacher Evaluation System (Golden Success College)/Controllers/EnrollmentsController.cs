@@ -99,7 +99,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
 
         // GET: Enrollments/GetSubjectsByStudent
         [HttpGet]
-        public async Task<IActionResult> GetSubjectsByStudent(int studentId)
+        public async Task<IActionResult> GetSubjectsByStudent(int studentId, int? excludeEnrollmentId = null, bool showEnrolled = false)
         {
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
@@ -117,28 +117,43 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (student == null)
                 return Json(new { success = false, message = "Student not found" });
 
-            // Get subjects that match the student's level
-            var subjects = await _context.Subject
+            // Get already enrolled subject IDs for this student (excluding current enrollment if editing)
+            var enrolledSubjectIds = await _context.Enrollment
+                .Where(e => e.StudentId == studentId &&
+                           (!excludeEnrollmentId.HasValue || e.EnrollmentId != excludeEnrollmentId.Value))
+                .Select(e => e.SubjectId)
+                .Distinct()
+                .ToListAsync();
+
+            // Get subjects that match the student's level AND have a teacher assigned
+            var allSubjects = await _context.Subject
                 .Include(s => s.Teacher)
                 .Include(s => s.Level)
-                .Where(s => s.LevelId == student.LevelId)
-                .Select(s => new
-                {
-                    subjectId = s.SubjectId,
-                    subjectName = s.SubjectName,
-                    teacherId = s.TeacherId,
-                    teacherName = s.Teacher != null ? s.Teacher.FullName : "No Teacher Assigned",
-                    level = s.Level != null ? s.Level.LevelName : "",
-                    levelId = s.LevelId
-                })
+                .Where(s => s.LevelId == student.LevelId && s.TeacherId != null && s.TeacherId > 0)
                 .ToListAsync();
+
+            // Separate into available and enrolled subjects
+            var subjects = allSubjects.Select(s => new
+            {
+                subjectId = s.SubjectId,
+                subjectName = s.SubjectName,
+                teacherId = s.TeacherId,
+                teacherName = s.Teacher != null ? s.Teacher.FullName : "No Teacher Assigned",
+                level = s.Level != null ? s.Level.LevelName : "",
+                levelId = s.LevelId,
+                isEnrolled = enrolledSubjectIds.Contains(s.SubjectId)
+            })
+            .Where(s => showEnrolled || !s.isEnrolled) // Filter out enrolled subjects unless showEnrolled is true
+            .ToList();
 
             return Json(new
             {
                 success = true,
                 data = subjects,
                 studentLevel = student.Level?.LevelName ?? "",
-                studentLevelId = student.LevelId
+                studentLevelId = student.LevelId,
+                availableCount = subjects.Count(s => !s.isEnrolled),
+                enrolledCount = enrolledSubjectIds.Count
             });
         }
 
@@ -222,6 +237,13 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                     if (await _context.Enrollment.AnyAsync(e => e.StudentId == model.StudentId && e.SubjectId == subjectId))
                     {
                         skippedCount++;
+                        continue;
+                    }
+
+                    // Check if subject has a teacher assigned
+                    if (subject.TeacherId == null || subject.TeacherId <= 0)
+                    {
+                        errors.Add($"Subject '{subject.SubjectName}' has no assigned teacher");
                         continue;
                     }
 

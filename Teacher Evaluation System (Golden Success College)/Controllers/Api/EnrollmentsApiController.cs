@@ -165,7 +165,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                 }
 
                 // Missing teacher
-                if (subject.TeacherId <= 0)
+                if (subject.TeacherId == null || subject.TeacherId <= 0)
                 {
                     errors.Add($"Subject '{subject.SubjectName}' has no assigned teacher.");
                     continue;
@@ -179,7 +179,6 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers.Api
                     TeacherId = subject.TeacherId
                 });
             }
-
 
             if (!createdEnrollments.Any())
             {

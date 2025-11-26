@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
 {
     /// <inheritdoc />
-    public partial class evaluationsystem : Migration
+    public partial class TeacherEvaluationSystem : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -403,9 +403,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                 columns: new[] { "RoleId", "Name" },
                 values: new object[,]
                 {
-                    { 1, "Super Admin" },
+                    { 1, "Student" },
                     { 2, "Admin" },
-                    { 3, "Student" }
+                    { 3, "Super Admin" }
                 });
 
             migrationBuilder.InsertData(
@@ -435,8 +435,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                 columns: new[] { "UserId", "Email", "FullName", "Password", "RoleId" },
                 values: new object[,]
                 {
-                    { 1, "ninojusay1@gmail.com", "Default Super Admin", "$2a$11$Rt6X48PJIuf8Jle1G9.3HuA5YMAGqPF7vzH0WXDKw6k3mlE/eEwom", 1 },
-                    { 2, "admin@example.com", "Default Admin", "$2a$11$IrZAi0zl2U/hkgbRMindxO2d9HlitG0j08IbrJCv4IFuiK5TqaHiq", 2 }
+                    { 1, "ninojusay1@gmail.com", "Default Super Admin", "$2a$11$FwcLEb/pzaBV2LjCUiHj1OhwA.7oyewydxgU/8d4wQuEbgkLqR08e", 3 },
+                    { 2, "admin@example.com", "Default Admin", "$2a$11$RNMuYlYhEZ0JkooDW9dfZuMrb/lBiCQbzU3Avf2wj7YB0R0ALn8TS", 2 }
                 });
 
             migrationBuilder.CreateIndex(

@@ -175,9 +175,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
             // ============================================
 
             modelBuilder.Entity<Role>().HasData(
-                  new Role { RoleId = 1, Name = "Super Admin" },
+                  new Role { RoleId = 1, Name = "Student" },
                   new Role { RoleId = 2, Name = "Admin" },
-                  new Role { RoleId = 3, Name = "Student" }
+                  new Role { RoleId = 3, Name = "Super Admin" }
               );
 
             // ============================================
@@ -195,7 +195,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Data
                     FullName = "Default Super Admin",
                     Email = "ninojusay1@gmail.com",
                     Password = superAdminPassword,
-                    RoleId = 1
+                    RoleId = 3
                 },
                 new User
                 {

@@ -423,7 +423,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                         new
                         {
                             RoleId = 1,
-                            Name = "Super Admin"
+                            Name = "Student"
                         },
                         new
                         {
@@ -433,7 +433,7 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                         new
                         {
                             RoleId = 3,
-                            Name = "Student"
+                            Name = "Super Admin"
                         });
                 });
 
@@ -634,15 +634,15 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Migrations
                             UserId = 1,
                             Email = "ninojusay1@gmail.com",
                             FullName = "Default Super Admin",
-                            Password = "$2a$11$Rt6X48PJIuf8Jle1G9.3HuA5YMAGqPF7vzH0WXDKw6k3mlE/eEwom",
-                            RoleId = 1
+                            Password = "$2a$11$FwcLEb/pzaBV2LjCUiHj1OhwA.7oyewydxgU/8d4wQuEbgkLqR08e",
+                            RoleId = 3
                         },
                         new
                         {
                             UserId = 2,
                             Email = "admin@example.com",
                             FullName = "Default Admin",
-                            Password = "$2a$11$IrZAi0zl2U/hkgbRMindxO2d9HlitG0j08IbrJCv4IFuiK5TqaHiq",
+                            Password = "$2a$11$RNMuYlYhEZ0JkooDW9dfZuMrb/lBiCQbzU3Avf2wj7YB0R0ALn8TS",
                             RoleId = 2
                         });
                 });

@@ -1,0 +1,160 @@
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.ActivityLogItemViewModel
+@{
+    ViewData["Title"] = "Activity Log Details";
+    Layout = "_Layoutadmin";
+}
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class='bx bx-detail'></i> Activity Log Details</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-action="Index">Activity Logs</a></li>
+                    <li class="breadcrumb-item active">Details</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <span class="@Model.GetActivityBadgeClass()">
+                    <i class='@Model.GetActivityIcon()'></i> @Model.ActivityType
+                </span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">User Information</h6>
+                    <dl class="row">
+                        <dt class="col-sm-4">Full Name:</dt>
+                        <dd class="col-sm-8"><strong>@Model.Username</strong></dd>
+
+                        <dt class="col-sm-4">Role:</dt>
+                        <dd class="col-sm-8"><span class="badge bg-secondary">@Model.Role</span></dd>
+
+                        <dt class="col-sm-4">Activity:</dt>
+                        <dd class="col-sm-8">@Model.ActivityType</dd>
+
+                        <dt class="col-sm-4">Timestamp:</dt>
+                        <dd class="col-sm-8">@Model.Timestamp.ToString("MMMM dd, yyyy hh:mm:ss tt")</dd>
+                    </dl>
+                </div>
+
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Location & Network</h6>
+                    <dl class="row">
+                        <dt class="col-sm-4">IP Address:</dt>
+                        <dd class="col-sm-8"><code>@Model.IpAddress</code></dd>
+
+                        <dt class="col-sm-4">City:</dt>
+                        <dd class="col-sm-8">@Model.City</dd>
+
+                        <dt class="col-sm-4">Region:</dt>
+                        <dd class="col-sm-8">@Model.Region</dd>
+
+                        <dt class="col-sm-4">Country:</dt>
+                        <dd class="col-sm-8">@Model.Country</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <hr />
+
+            @if (Model.TimeIn != null || Model.TimeOut != null)
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-3">Session Information</h6>
+                        <dl class="row">
+                            @if (Model.TimeIn != null)
+                            {
+                                <dt class="col-sm-2">Time In:</dt>
+                                <dd class="col-sm-4">@Model.TimeIn?.ToString("MMMM dd, yyyy hh:mm:ss tt")</dd>
+                            }
+
+                            @if (Model.TimeOut != null)
+                            {
+                                <dt class="col-sm-2">Time Out:</dt>
+                                <dd class="col-sm-4">@Model.TimeOut?.ToString("MMMM dd, yyyy hh:mm:ss tt")</dd>
+                            }
+
+                            @if (Model.Duration != null)
+                            {
+                                <dt class="col-sm-2">Duration:</dt>
+                                <dd class="col-sm-4">
+                                    <span class="badge bg-info">@Model.FormatDuration()</span>
+                                </dd>
+                            }
+                        </dl>
+                    </div>
+                </div>
+                <hr />
+            }
+
+            @if (Model.TeacherName != null || Model.SubjectName != null)
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-3">Evaluation Details</h6>
+                        <dl class="row">
+                            @if (Model.TeacherName != null)
+                            {
+                                <dt class="col-sm-2">Teacher:</dt>
+                                <dd class="col-sm-4">@Model.TeacherName</dd>
+                            }
+
+                            @if (Model.SubjectName != null)
+                            {
+                                <dt class="col-sm-2">Subject:</dt>
+                                <dd class="col-sm-4">@Model.SubjectName</dd>
+                            }
+
+                            @if (Model.EvaluationId != null)
+                            {
+                                <dt class="col-sm-2">Evaluation ID:</dt>
+                                <dd class="col-sm-4">
+                                    <a asp-controller="TeacherEvaluations"
+                                       asp-action="Details"
+                                       asp-route-id="@Model.EvaluationId"
+                                       class="btn btn-sm btn-outline-primary">
+                                        View Evaluation #@Model.EvaluationId
+                                    </a>
+                                </dd>
+                            }
+                        </dl>
+                    </div>
+                </div>
+                <hr />
+            }
+
+            @if (!string.IsNullOrEmpty(Model.UserAgent))
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-3">Browser Information</h6>
+                        <p><small class="text-muted">@Model.UserAgent</small></p>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(Model.Description))
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-3">Description</h6>
+                        <p>@Model.Description</p>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="card-footer">
+            <a asp-action="Index" class="btn btn-secondary">
+                <i class='bx bx-arrow-back'></i> Back to List
+            </a>
+        </div>
+    </div>
+</div>

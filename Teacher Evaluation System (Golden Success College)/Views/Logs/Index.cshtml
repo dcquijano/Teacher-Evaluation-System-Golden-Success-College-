@@ -1,0 +1,239 @@
+﻿@model Teacher_Evaluation_System__Golden_Success_College_.ViewModels.ActivityLogListViewModel
+@{
+    ViewData["Title"] = "Activity Logs";
+    Layout = "_Layoutadmin";
+}
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class='bx bx-list-ul'></i> Activity Logs</h2>
+            <p class="text-muted">Monitor system activities, user logins, and evaluation tracking</p>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" asp-action="Index">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">From Date</label>
+                        <input type="date" name="filterDateFrom" class="form-control"
+                               value="@Model.FilterDateFrom?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">To Date</label>
+                        <input type="date" name="filterDateTo" class="form-control"
+                               value="@Model.FilterDateTo?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Activity Type</label>
+                        <select name="filterActivityType" class="form-select" asp-items="ViewBag.ActivityTypes"></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" name="filterUsername" class="form-control"
+                               value="@Model.FilterUsername" placeholder="Search by username..." />
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col">
+                        <button type="submit" class="btn btn-primary">
+                            <i class='bx bx-filter-alt'></i> Apply Filters
+                        </button>
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class='bx bx-reset'></i> Clear Filters
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Total Activities</h5>
+                    <h2>@Model.ActivityLogs.Count</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5>Logins</h5>
+                    <h2>@Model.ActivityLogs.Count(l => l.ActivityType == "Login")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5>Evaluations</h5>
+                    <h2>@Model.ActivityLogs.Count(l => l.ActivityType == "EvaluationCompleted")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5>Unique Users</h5>
+                    <h2>@Model.ActivityLogs.Select(l => l.Username).Distinct().Count()</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Logs Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Activity</th>
+                            <th>Description</th>
+                            <th>IP Address</th>
+                            <th>Location</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.ActivityLogs.Any())
+                        {
+                            foreach (var log in Model.ActivityLogs)
+                            {
+                                <tr>
+                                    <td>
+                                        <small>@log.Timestamp.ToString("MMM dd, yyyy")</small><br />
+                                        <small class="text-muted">@log.Timestamp.ToString("hh:mm:ss tt")</small>
+                                    </td>
+                                    <td><strong>@log.Username</strong></td>
+                                    <td><span class="badge bg-secondary">@log.Role</span></td>
+                                    <td>
+                                        <span class="@log.GetActivityBadgeClass()">
+                                            <i class='@log.GetActivityIcon()'></i> @log.ActivityType
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (log.TeacherName != null)
+                                        {
+                                            <small>
+                                                <strong>Teacher:</strong> @log.TeacherName<br />
+                                                @if (log.SubjectName != null)
+                                                {
+                                                    <strong>Subject:</strong> 
+                                                    @log.SubjectName
+                                                }
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <small>@log.Description</small>
+                                        }
+                                    </td>
+                                    <td><code>@log.IpAddress</code></td>
+                                    <td><small>@log.Location</small></td>
+                                    <td>
+                                        @if (log.Duration != null)
+                                        {
+                                            <span class="badge bg-light text-dark">@log.FormatDuration()</span>
+                                        }
+                                        else if (log.TimeIn != null)
+                                        {
+                                            <small>
+                                                In: @log.TimeIn?.ToString("hh:mm tt")<br />
+                                                @if (log.TimeOut != null)
+                                                {
+                                                    <text>Out: @log.TimeOut?.ToString("hh:mm tt")</text>
+                                                }
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <a asp-action="Details" asp-route-id="@log.ActivityLogId"
+                                           class="btn btn-sm btn-info" title="View Details">
+                                            <i class='bx bx-show'></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <i class='bx bx-info-circle' style="font-size: 48px;"></i>
+                                    <p>No activity logs found.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- PAGINATION -->
+            @if (Model.TotalPages > 1)
+            {
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+
+                        <!-- Previous -->
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-page="@(Model.CurrentPage - 1)"
+                               asp-route-filterDateFrom="@Model.FilterDateFrom"
+                               asp-route-filterDateTo="@Model.FilterDateTo"
+                               asp-route-filterActivityType="@Model.FilterActivityType"
+                               asp-route-filterUsername="@Model.FilterUsername">
+                                Previous
+                            </a>
+                        </li>
+
+                        <!-- Page Numbers -->
+                        @for (int i = 1; i <= Model.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                <a class="page-link"
+                                   asp-action="Index"
+                                   asp-route-page="@i"
+                                   asp-route-filterDateFrom="@Model.FilterDateFrom"
+                                   asp-route-filterDateTo="@Model.FilterDateTo"
+                                   asp-route-filterActivityType="@Model.FilterActivityType"
+                                   asp-route-filterUsername="@Model.FilterUsername">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        <!-- Next -->
+                        <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-page="@(Model.CurrentPage + 1)"
+                               asp-route-filterDateFrom="@Model.FilterDateFrom"
+                               asp-route-filterDateTo="@Model.FilterDateTo"
+                               asp-route-filterActivityType="@Model.FilterActivityType"
+                               asp-route-filterUsername="@Model.FilterUsername">
+                                Next
+                            </a>
+                        </li>
+
+                    </ul>
+                </nav>
+            }
+        </div>
+    </div>
+</div>

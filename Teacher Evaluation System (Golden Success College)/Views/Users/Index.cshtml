@@ -80,7 +80,7 @@
                         <label for="RoleId" class="form-label">Role</label>
                         <select class="form-select" id="RoleId" name="RoleId" required>
                             <option value="">-- Select Role --</option>
-                            @foreach (var role in ViewBag.RoleId as SelectList)
+                            @foreach (var role in ViewBag.RoleId as SelectList) // This now only contains Admin/Super Admin
                             {
                                 <option value="@role.Value">@role.Text</option>
                             }

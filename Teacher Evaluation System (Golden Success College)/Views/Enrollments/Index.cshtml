@@ -6,6 +6,8 @@
     var userRole = ViewBag.UserRole as string;
     var isStudentUser = ViewBag.IsStudentUser as bool? ?? false;
     var currentStudentId = ViewBag.CurrentStudentId;
+    var selectedLevelId = ViewBag.SelectedLevelId;
+    var selectedSectionId = ViewBag.SelectedSectionId;
 }
 
 <h1>Enrollments</h1>
@@ -42,10 +44,36 @@
     </div>
 }
 
-<div class="mb-3">
+<div class="mb-3 d-flex justify-content-between align-items-center">
     <button class="btn btn-primary" id="btnCreateEnrollment">
         <i class="bi bi-plus-circle"></i> Create Enrollment
     </button>
+    
+    @if (userRole == "Admin" || userRole == "Super Admin")
+    {
+        <div class="d-flex gap-2">
+            <select class="form-select" id="filterLevel" style="width: 200px;">
+                <option value="">All Levels</option>
+                @foreach (var level in ViewBag.Levels as SelectList)
+                {
+                    if (selectedLevelId?.ToString() == level.Value)
+                    {
+                        <option value="@level.Value" selected>@level.Text</option>
+                    }
+                    else
+                    {
+                        <option value="@level.Value">@level.Text</option>
+                    }
+                }
+            </select>
+            <select class="form-select" id="filterSection" style="width: 250px;" disabled>
+                <option value="">All Sections</option>
+            </select>
+            <button class="btn btn-secondary" id="btnClearFilters">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+        </div>
+    }
 </div>
 
 <!-- Loading overlay -->
@@ -81,8 +109,11 @@
                              style="width:80px;height:80px;border-radius:50%;border:3px solid #43a047;object-fit:cover;" />
 
                         <h5 class="card-title mb-1">@item.Student?.FullName</h5>
+                        <div class="text-muted small mb-1">
+                            <i class="bi bi-building"></i> @item.Student?.Section?.Level?.LevelName
+                        </div>
                         <div class="text-muted small mb-2">
-                            <i class="bi bi-mortarboard"></i> @item.Student?.Level?.LevelName
+                            <i class="bi bi-people"></i> @item.Student?.Section?.SectionName
                         </div>
                         <hr />
                         <div class="mb-2">
@@ -235,6 +266,75 @@
                 $('.is-invalid').removeClass('is-invalid');
             }
 
+            // Filter: Load sections when level changes
+            $('#filterLevel').change(function() {
+                var levelId = $(this).val();
+                var $sectionFilter = $('#filterSection');
+                
+                if (!levelId) {
+                    $sectionFilter.html('<option value="">All Sections</option>').prop('disabled', true);
+                    window.location.href = '/Enrollments/Index';
+                    return;
+                }
+                
+                $.ajax({
+                    url: `/Enrollments/GetSectionsByLevel?levelId=${levelId}`,
+                    method: 'GET',
+                    success: function(res) {
+                        if (res.success) {
+                            var html = '<option value="">All Sections</option>';
+                            res.data.forEach(s => {
+                                html += `<option value="${s.sectionId}">${s.sectionName}</option>`;
+                            });
+                            $sectionFilter.html(html).prop('disabled', false);
+                            
+                            // Apply level filter
+                            window.location.href = `/Enrollments/Index?levelId=${levelId}`;
+                        }
+                    }
+                });
+            });
+
+            // Filter: Apply section filter
+            $('#filterSection').change(function() {
+                var levelId = $('#filterLevel').val();
+                var sectionId = $(this).val();
+                
+                if (levelId) {
+                    var url = `/Enrollments/Index?levelId=${levelId}`;
+                    if (sectionId) {
+                        url += `&sectionId=${sectionId}`;
+                    }
+                    window.location.href = url;
+                }
+            });
+
+            // Clear filters
+            $('#btnClearFilters').click(function() {
+                window.location.href = '/Enrollments/Index';
+            });
+
+            // Load sections on page load if level is selected
+            @if (selectedLevelId != null)
+            {
+                <text>
+                $.ajax({
+                    url: `/Enrollments/GetSectionsByLevel?levelId=@selectedLevelId`,
+                    method: 'GET',
+                    success: function(res) {
+                        if (res.success) {
+                            var html = '<option value="">All Sections</option>';
+                            res.data.forEach(s => {
+                                var selected = @(selectedSectionId ?? 0) == s.sectionId ? 'selected' : '';
+                                html += `<option value="${s.sectionId}" ${selected}>${s.sectionName}</option>`;
+                            });
+                            $('#filterSection').html(html).prop('disabled', false);
+                        }
+                    }
+                });
+                </text>
+            }
+
             // Create Enrollment Button
             $('#btnCreateEnrollment').click(function () {
                 $('#enrollmentModalLabel').text('Create Enrollment');
@@ -246,7 +346,6 @@
                     $('#subjectMultiSelectContainer').hide();
                     $('#SubjectId').prop('required', true);
                     $('#SubjectIds').prop('required', false);
-                    // Auto-load subjects for student
                     loadSubjectsForStudent(currentStudentId);
                 } else {
                     $('#StudentId').prop('disabled', false);
@@ -290,7 +389,6 @@
                     },
                     success: function (res) {
                         if (res.success) {
-                            // Filter only available (non-enrolled) subjects
                             var availableSubjects = res.data.filter(s => !s.isEnrolled);
 
                             if (availableSubjects.length === 0) {
@@ -302,16 +400,15 @@
                                 $('#SubjectId').html('<option value="">-- All subjects enrolled --</option>');
                                 $('#SubjectIds').html('<option disabled>-- All subjects enrolled --</option>');
 
-                                if (res.studentLevel) {
-                                    $('#levelInfoText').text(`${res.studentLevel} - Already enrolled in all available subjects`);
+                                if (res.studentLevel && res.studentSection) {
+                                    $('#levelInfoText').text(`${res.studentLevel} - ${res.studentSection} - Already enrolled in all available subjects`);
                                     $('#levelInfo').removeClass('alert-info').addClass('alert-warning').fadeIn();
                                 }
                                 return;
                             }
 
-                            // Show level info with available count
-                            if (res.studentLevel) {
-                                var infoText = `${res.studentLevel} - ${availableSubjects.length} available subject${availableSubjects.length > 1 ? 's' : ''}`;
+                            if (res.studentLevel && res.studentSection) {
+                                var infoText = `${res.studentLevel} - ${res.studentSection} - ${availableSubjects.length} available subject${availableSubjects.length > 1 ? 's' : ''}`;
                                 if (res.enrolledCount > 0) {
                                     infoText += ` (${res.enrolledCount} already enrolled)`;
                                 }
@@ -347,7 +444,7 @@
                 });
             }
 
-            // Edit Enrollment - THIS IS WHERE THE CODE GOES!
+            // Edit Enrollment
             $(document).on('click', '.btn-edit', function () {
                 var id = $(this).data('id');
                 loadingOverlay.show();
@@ -362,7 +459,6 @@
                             $('#EnrollmentId').val(res.data.enrollmentId);
                             $('#StudentId').val(res.data.studentId).prop('disabled', true);
 
-                            // Load ALL subjects for the student (including enrolled) for edit mode
                             $.ajax({
                                 url: `/Enrollments/GetSubjectsByStudent?studentId=${res.data.studentId}&excludeEnrollmentId=${res.data.enrollmentId}&showEnrolled=true`,
                                 method: 'GET',
@@ -371,20 +467,16 @@
                                         var html = '';
                                         var currentSubjectFound = false;
 
-                                        // THIS IS WHERE YOUR CODE GOES - Loop through subjects and add labels
                                         subjects.data.forEach(s => {
                                             var selected = s.subjectId == res.data.subjectId ? 'selected' : '';
                                             var enrolledTag = '';
 
-                                            // ⭐ YOUR CODE IS HERE ⭐
-                                            // Mark as current or already enrolled
                                             if (s.subjectId == res.data.subjectId) {
-                                                enrolledTag = ' (Current)';  // The subject being edited
+                                                enrolledTag = ' (Current)';
                                                 currentSubjectFound = true;
                                             } else if (s.isEnrolled) {
-                                                enrolledTag = ' (Already Enrolled)';  // Other enrolled subjects
+                                                enrolledTag = ' (Already Enrolled)';
                                             }
-                                            // No tag = Available subject
 
                                             html += `<option value="${s.subjectId}" ${selected}>${s.subjectName} (${s.teacherName})${enrolledTag}</option>`;
                                         });
@@ -395,9 +487,9 @@
 
                                         $('#SubjectId').html(html);
 
-                                        if (subjects.studentLevel) {
+                                        if (subjects.studentLevel && subjects.studentSection) {
                                             var availableCount = subjects.data.filter(s => !s.isEnrolled).length;
-                                            var infoText = `${subjects.studentLevel} - ${availableCount} available`;
+                                            var infoText = `${subjects.studentLevel} - ${subjects.studentSection} - ${availableCount} available`;
                                             if (subjects.enrolledCount > 0) {
                                                 infoText += `, ${subjects.enrolledCount} enrolled`;
                                             }
@@ -432,13 +524,11 @@
 
             // Save Enrollment
             $('#saveEnrollmentBtn').click(function () {
-                // Clear previous validation
                 $('.is-invalid').removeClass('is-invalid');
 
                 var enrollmentId = $('#EnrollmentId').val();
                 var studentId = $('#StudentId').val();
 
-                // Validation
                 if (!studentId) {
                     $('#StudentId').addClass('is-invalid');
                     showToast('Please select a student', 'bg-warning');
@@ -459,20 +549,18 @@
                     return;
                 }
 
-                // Prepare payload
                 var payload = enrollmentId
                     ? {
                         enrollmentId: parseInt(enrollmentId),
                         studentId: parseInt(studentId),
                         subjectId: parseInt(subjects[0]),
-                        teacherId: 0  // Backend will determine this
+                        teacherId: 0
                       }
                     : {
                         studentId: parseInt(studentId),
                         subjectIds: subjects.map(x => parseInt(x))
                       };
 
-                // Send request
                 $.ajax({
                     url: enrollmentId ? `/api/EnrollmentsApi/${enrollmentId}` : '/api/EnrollmentsApi',
                     method: enrollmentId ? 'PUT' : 'POST',
@@ -494,7 +582,6 @@
                             showToast(message, res.errors && res.errors.length > 0 ? 'bg-warning' : 'bg-success');
                             enrollmentModal.hide();
 
-                            // Reload page after a short delay
                             setTimeout(function() {
                                 location.reload();
                             }, 1500);
@@ -555,7 +642,6 @@
                 });
             });
 
-            // Clean up modal on hide
             $('#enrollmentModal').on('hidden.bs.modal', function () {
                 resetForm();
             });

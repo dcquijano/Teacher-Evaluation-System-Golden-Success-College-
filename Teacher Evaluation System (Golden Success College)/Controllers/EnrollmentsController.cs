@@ -2,11 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using Teacher_Evaluation_System__Golden_Success_College_.Data;
 using Teacher_Evaluation_System__Golden_Success_College_.Models;
 using Teacher_Evaluation_System__Golden_Success_College_.ViewModels;
@@ -24,21 +20,26 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         }
 
         // GET: Enrollments
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(int? levelId, int? sectionId)
         {
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
 
             ViewBag.UserRole = userRole;
 
+            // Populate filter dropdowns for Admin/Super Admin
+            ViewBag.Levels = new SelectList(await _context.Level.OrderBy(l => l.LevelName).ToListAsync(), "LevelId", "LevelName", levelId);
+            ViewBag.SelectedLevelId = levelId;
+            ViewBag.SelectedSectionId = sectionId;
+
             // Build query based on role
             var query = _context.Enrollment
                 .Include(e => e.Student)
-                    .ThenInclude(s => s.Level)
+                    .ThenInclude(s => s.Section)
+                        .ThenInclude(sec => sec.Level)
                 .Include(e => e.Subject)
                     .ThenInclude(s => s.Level)
                 .Include(e => e.Teacher)
-                    .ThenInclude(t => t.Level)
                 .AsQueryable();
 
             if (userRole == "Student")
@@ -47,57 +48,69 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 ViewBag.IsStudentUser = true;
                 query = query.Where(e => e.StudentId == userId);
 
-                // Only show current student in dropdown
-                var currentStudent = await _context.Student.FindAsync(userId);
+                var currentStudent = await _context.Student
+                    .Include(s => s.Section)
+                        .ThenInclude(sec => sec.Level)
+                    .FirstOrDefaultAsync(s => s.StudentId == userId);
+
                 ViewBag.StudentId = new SelectList(new[] { currentStudent }, "StudentId", "FullName", userId);
+                ViewBag.CurrentSectionId = currentStudent?.SectionId;
             }
             else
             {
                 ViewBag.CurrentStudentId = null;
                 ViewBag.IsStudentUser = false;
-                ViewBag.StudentId = new SelectList(await _context.Student.ToListAsync(), "StudentId", "FullName");
+
+                // Apply filters for Admin/Super Admin
+                if (levelId.HasValue)
+                {
+                    query = query.Where(e => e.Student.Section.LevelId == levelId.Value);
+                }
+                if (sectionId.HasValue)
+                {
+                    query = query.Where(e => e.Student.SectionId == sectionId.Value);
+                }
+
+                ViewBag.StudentId = new SelectList(await _context.Student
+                    .Include(s => s.Section)
+                        .ThenInclude(sec => sec.Level)
+                    .OrderBy(s => s.FullName)
+                    .ToListAsync(), "StudentId", "FullName");
             }
 
-            var enrollments = await query.OrderBy(e => e.Student.FullName).ToListAsync();
+            var enrollments = await query
+                .OrderBy(e => e.Student.Section.Level.LevelName)
+                .ThenBy(e => e.Student.Section.SectionName)
+                .ThenBy(e => e.Student.FullName)
+                .ToListAsync();
 
-            // Subject list for reference
             ViewBag.SubjectId = new SelectList(await _context.Subject.ToListAsync(), "SubjectId", "SubjectName");
 
             return View(enrollments);
         }
 
-        // GET: Enrollments/Create
-        public async Task<IActionResult> Create()
+        // GET: Enrollments/GetSectionsByLevel - NEW METHOD
+        [HttpGet]
+        public async Task<IActionResult> GetSectionsByLevel(int levelId)
         {
-            var userEmail = User.FindFirstValue(ClaimTypes.Name);
-            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (levelId <= 0)
+                return Json(new { success = false, message = "Level ID is required" });
 
-            // If student, auto-select their account
-            if (userRole == "Student")
-            {
-                var currentStudent = await _context.Student
-                    .FirstOrDefaultAsync(s => s.Email == userEmail);
-
-                if (currentStudent != null)
+            var sections = await _context.Section
+                .Where(s => s.LevelId == levelId)
+                .OrderBy(s => s.SectionName)
+                .Select(s => new
                 {
-                    ViewBag.StudentId = new SelectList(new[] { currentStudent }, "StudentId", "FullName", currentStudent.StudentId);
-                    ViewBag.IsStudentUser = true;
-                    ViewBag.CurrentStudentId = currentStudent.StudentId;
-                }
-            }
-            else
-            {
-                ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName");
-                ViewBag.IsStudentUser = false;
-            }
+                    sectionId = s.SectionId,
+                    sectionName = s.SectionName,
+                    levelId = s.LevelId
+                })
+                .ToListAsync();
 
-            ViewBag.SubjectId = new SelectList(Enumerable.Empty<SelectListItem>());
-            ViewBag.SubjectTeacher = new Dictionary<int, string>();
-
-            return View();
+            return Json(new { success = true, data = sections });
         }
 
-        // GET: Enrollments/GetSubjectsByStudent
+        // GET: Enrollments/GetSubjectsByStudent - UPDATED
         [HttpGet]
         public async Task<IActionResult> GetSubjectsByStudent(int studentId, int? excludeEnrollmentId = null, bool showEnrolled = false)
         {
@@ -111,13 +124,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             }
 
             var student = await _context.Student
-                .Include(s => s.Level)
+                .Include(s => s.Section)
+                    .ThenInclude(sec => sec.Level)
                 .FirstOrDefaultAsync(s => s.StudentId == studentId);
 
             if (student == null)
                 return Json(new { success = false, message = "Student not found" });
 
-            // Get already enrolled subject IDs for this student (excluding current enrollment if editing)
+            // Get already enrolled subject IDs for this student
             var enrolledSubjectIds = await _context.Enrollment
                 .Where(e => e.StudentId == studentId &&
                            (!excludeEnrollmentId.HasValue || e.EnrollmentId != excludeEnrollmentId.Value))
@@ -125,14 +139,14 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 .Distinct()
                 .ToListAsync();
 
-            // Get subjects that match the student's level AND have a teacher assigned
+            // Get subjects that match the student's LEVEL (not section, for flexibility)
+            // But you can change to match Section if subjects are section-specific
             var allSubjects = await _context.Subject
                 .Include(s => s.Teacher)
                 .Include(s => s.Level)
-                .Where(s => s.LevelId == student.LevelId && s.TeacherId != null && s.TeacherId > 0)
+                .Where(s => s.LevelId == student.Section.LevelId && s.TeacherId != null && s.TeacherId > 0)
                 .ToListAsync();
 
-            // Separate into available and enrolled subjects
             var subjects = allSubjects.Select(s => new
             {
                 subjectId = s.SubjectId,
@@ -143,39 +157,20 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                 levelId = s.LevelId,
                 isEnrolled = enrolledSubjectIds.Contains(s.SubjectId)
             })
-            .Where(s => showEnrolled || !s.isEnrolled) // Filter out enrolled subjects unless showEnrolled is true
+            .Where(s => showEnrolled || !s.isEnrolled)
             .ToList();
 
             return Json(new
             {
                 success = true,
                 data = subjects,
-                studentLevel = student.Level?.LevelName ?? "",
-                studentLevelId = student.LevelId,
+                studentLevel = student.Section?.Level?.LevelName ?? "",
+                studentSection = student.Section?.SectionName ?? "",
+                studentLevelId = student.Section?.LevelId,
+                studentSectionId = student.SectionId,
                 availableCount = subjects.Count(s => !s.isEnrolled),
                 enrolledCount = enrolledSubjectIds.Count
             });
-        }
-
-        // GET: Enrollments/GetTeachersByLevel
-        [HttpGet]
-        public async Task<IActionResult> GetTeachersByLevel(int levelId)
-        {
-            if (levelId <= 0)
-                return Json(new { success = false, message = "Level ID is required" });
-
-            var teachers = await _context.Teacher
-                .Include(t => t.Level)
-                .Where(t => t.LevelId == levelId)
-                .Select(t => new
-                {
-                    teacherId = t.TeacherId,
-                    teacherName = t.FullName,
-                    level = t.Level != null ? t.Level.LevelName : ""
-                })
-                .ToListAsync();
-
-            return Json(new { success = true, data = teachers });
         }
 
         // POST: Enrollments/Create
@@ -199,7 +194,8 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             if (ModelState.IsValid)
             {
                 var student = await _context.Student
-                    .Include(s => s.Level)
+                    .Include(s => s.Section)
+                        .ThenInclude(sec => sec.Level)
                     .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
 
                 if (student == null)
@@ -226,10 +222,10 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
                         continue;
                     }
 
-                    // Security: Ensure subject level matches student level
-                    if (subject.LevelId != student.LevelId)
+                    // Security: Ensure subject level matches student's section level
+                    if (subject.LevelId != student.Section.LevelId)
                     {
-                        errors.Add($"Cannot enroll in '{subject.SubjectName}' - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
+                        errors.Add($"Cannot enroll in '{subject.SubjectName}' - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Section?.Level?.LevelName ?? "Unknown"}");
                         continue;
                     }
 
@@ -281,176 +277,9 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             return View(model);
         }
 
-        // GET: Enrollments/Edit/5
-        [Authorize(Roles = "Admin,Super Admin")]
-        public async Task<IActionResult> Edit(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var enrollment = await _context.Enrollment
-                .Include(e => e.Student)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Subject)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Teacher)
-                    .ThenInclude(t => t.Level)
-                .FirstOrDefaultAsync(e => e.EnrollmentId == id);
-
-            if (enrollment == null)
-                return NotFound();
-
-            // Get student level to filter subjects and teachers
-            var studentLevelId = enrollment.Student?.LevelId;
-
-            ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
-
-            // Filter subjects by student level
-            var subjects = await _context.Subject
-                .Where(s => s.LevelId == studentLevelId)
-                .ToListAsync();
-            ViewData["SubjectId"] = new SelectList(subjects, "SubjectId", "SubjectName", enrollment.SubjectId);
-
-            // Filter teachers by student level
-            var teachers = await _context.Teacher
-                .Where(t => t.LevelId == studentLevelId)
-                .ToListAsync();
-            ViewData["TeacherId"] = new SelectList(teachers, "TeacherId", "FullName", enrollment.TeacherId);
-
-            return View(enrollment);
-        }
-
-        // POST: Enrollments/Edit/5
+        // DELETE: Enrollments/Delete
         [Authorize(Roles = "Admin,Super Admin")]
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("EnrollmentId,StudentId,SubjectId,TeacherId")] Enrollment enrollment)
-        {
-            if (id != enrollment.EnrollmentId)
-            {
-                return NotFound();
-            }
-
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    var student = await _context.Student
-                        .Include(s => s.Level)
-                        .FirstOrDefaultAsync(s => s.StudentId == enrollment.StudentId);
-
-                    if (student == null)
-                    {
-                        ModelState.AddModelError("", "Student not found");
-                        await PopulateViewDataForEdit(enrollment);
-                        return View(enrollment);
-                    }
-
-                    var subject = await _context.Subject
-                        .Include(s => s.Level)
-                        .FirstOrDefaultAsync(s => s.SubjectId == enrollment.SubjectId);
-
-                    if (subject == null)
-                    {
-                        ModelState.AddModelError("", "Subject not found");
-                        await PopulateViewDataForEdit(enrollment);
-                        return View(enrollment);
-                    }
-
-                    // Verify subject level matches student level
-                    if (subject.LevelId != student.LevelId)
-                    {
-                        ModelState.AddModelError("SubjectId", $"Cannot assign this subject - it's for {subject.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
-                        await PopulateViewDataForEdit(enrollment, student.LevelId);
-                        return View(enrollment);
-                    }
-
-                    var teacher = await _context.Teacher
-                        .Include(t => t.Level)
-                        .FirstOrDefaultAsync(t => t.TeacherId == enrollment.TeacherId);
-
-                    if (teacher == null)
-                    {
-                        ModelState.AddModelError("", "Teacher not found");
-                        await PopulateViewDataForEdit(enrollment);
-                        return View(enrollment);
-                    }
-
-                    // Verify teacher level matches student level
-                    if (teacher.LevelId != student.LevelId)
-                    {
-                        ModelState.AddModelError("TeacherId", $"Cannot assign this teacher - they teach {teacher.Level?.LevelName ?? "Unknown"}, but student is in {student.Level?.LevelName ?? "Unknown"}");
-                        await PopulateViewDataForEdit(enrollment, student.LevelId);
-                        return View(enrollment);
-                    }
-
-                    // Check for duplicate enrollment (excluding current record)
-                    var duplicateExists = await _context.Enrollment
-                        .AnyAsync(e => e.StudentId == enrollment.StudentId
-                                    && e.SubjectId == enrollment.SubjectId
-                                    && e.EnrollmentId != enrollment.EnrollmentId);
-
-                    if (duplicateExists)
-                    {
-                        ModelState.AddModelError("", "This student is already enrolled in this subject");
-                        await PopulateViewDataForEdit(enrollment, student.LevelId);
-                        return View(enrollment);
-                    }
-
-                    _context.Update(enrollment);
-                    await _context.SaveChangesAsync();
-                    TempData["Success"] = "Enrollment updated successfully!";
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!EnrollmentExists(enrollment.EnrollmentId))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
-            }
-
-            await PopulateViewDataForEdit(enrollment);
-            return View(enrollment);
-        }
-
-        // GET: Enrollments/Delete/5
-        [Authorize(Roles = "Admin,Super Admin")]
-        public async Task<IActionResult> Delete(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var enrollment = await _context.Enrollment
-                .Include(e => e.Student)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Subject)
-                    .ThenInclude(s => s.Level)
-                .Include(e => e.Teacher)
-                    .ThenInclude(t => t.Level)
-                .FirstOrDefaultAsync(m => m.EnrollmentId == id);
-
-            if (enrollment == null)
-            {
-                return NotFound();
-            }
-
-            return View(enrollment);
-        }
-
-        // POST: Enrollments/Delete/5
-        [Authorize(Roles = "Admin,Super Admin")]
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var enrollment = await _context.Enrollment.FindAsync(id);
@@ -478,7 +307,11 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         {
             if (userRole == "Student")
             {
-                var currentStudent = await _context.Student.FindAsync(studentId);
+                var currentStudent = await _context.Student
+                    .Include(s => s.Section)
+                        .ThenInclude(sec => sec.Level)
+                    .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
                 if (currentStudent != null)
                 {
                     ViewBag.StudentId = new SelectList(new[] { currentStudent }, "StudentId", "FullName", currentStudent.StudentId);
@@ -487,34 +320,17 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
             }
             else
             {
-                ViewBag.StudentId = new SelectList(_context.Student, "StudentId", "FullName", studentId);
+                ViewBag.StudentId = new SelectList(
+                    await _context.Student
+                        .Include(s => s.Section)
+                            .ThenInclude(sec => sec.Level)
+                        .OrderBy(s => s.FullName)
+                        .ToListAsync(),
+                    "StudentId", "FullName", studentId);
                 ViewBag.IsStudentUser = false;
             }
 
             ViewBag.SubjectId = new SelectList(Enumerable.Empty<SelectListItem>());
-        }
-
-        private async Task PopulateViewDataForEdit(Enrollment enrollment, int? levelId = null)
-        {
-            ViewData["StudentId"] = new SelectList(_context.Student, "StudentId", "FullName", enrollment.StudentId);
-
-            if (levelId.HasValue)
-            {
-                var subjects = await _context.Subject
-                    .Where(s => s.LevelId == levelId)
-                    .ToListAsync();
-                ViewData["SubjectId"] = new SelectList(subjects, "SubjectId", "SubjectName", enrollment.SubjectId);
-
-                var teachers = await _context.Teacher
-                    .Where(t => t.LevelId == levelId)
-                    .ToListAsync();
-                ViewData["TeacherId"] = new SelectList(teachers, "TeacherId", "FullName", enrollment.TeacherId);
-            }
-            else
-            {
-                ViewData["SubjectId"] = new SelectList(_context.Subject, "SubjectId", "SubjectName", enrollment.SubjectId);
-                ViewData["TeacherId"] = new SelectList(_context.Teacher, "TeacherId", "FullName", enrollment.TeacherId);
-            }
         }
     }
 }

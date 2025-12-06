@@ -26,7 +26,12 @@ namespace Teacher_Evaluation_System__Golden_Success_College_.Controllers
         public async Task<IActionResult> Index()
         {
             var teacher_Evaluation_System__Golden_Success_College_Context = _context.User.Include(u => u.Role);
-            ViewBag.RoleId = new SelectList(await _context.Role.ToListAsync(), "RoleId", "Name");
+            var filteredRoles = _context.Role
+           .Where(r => r.Name == "Admin" || r.Name == "Super Admin")
+           .OrderBy(r => r.Name) // Optional: for consistent sorting
+           .ToList();
+
+            ViewData["RoleId"] = new SelectList(filteredRoles, "RoleId", "Name");
             return View(await teacher_Evaluation_System__Golden_Success_College_Context.ToListAsync());
 
         }

@@ -102,22 +102,22 @@
             <div class="col-lg-4 col-md-6 col-sm-12">
                 <div class="card text-center shadow-sm h-100" style="border-radius:1.25rem;">
                     <div class="card-body d-flex flex-column">
-                        @{
+                   @*      @{
                             // Get first teacher picture for display
                             var firstTeacher = item.Teacher;
                         }
                         <img src="@(string.IsNullOrWhiteSpace(firstTeacher?.PicturePath) ? "/images/default-profile.png" : firstTeacher.PicturePath)"
                              alt="Teacher Picture" class="mb-3 mx-auto"
-                             style="width:80px;height:80px;border-radius:50%;border:3px solid #43a047;object-fit:cover;" />
+                             style="width:80px;height:80px;border-radius:50%;border:3px solid #43a047;object-fit:cover;" /> *@
 
-                        <h5 class="card-title mb-1">@item.Student?.FullName</h5>
+                   @*      <h5 class="card-title mb-1">@item.Student?.FullName</h5>
                         <div class="text-muted small mb-1">
                             <i class="bi bi-building"></i> @item.Student?.Section?.Level?.LevelName
                         </div>
                         <div class="text-muted small mb-2">
                             <i class="bi bi-people"></i> @item.Student?.Section?.SectionName
                         </div>
-                        <hr />
+                        <hr /> *@
 
                         @{
                             // Retrieve enrollment count from ViewBag (using pattern matching for safety)
